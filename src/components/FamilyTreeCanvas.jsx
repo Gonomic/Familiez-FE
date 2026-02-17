@@ -583,21 +583,23 @@ const FamilyTreeCanvas = ({
             const childTopY = childPos.y;
             const childLeftX = childPos.x - TRIANGLE_WIDTH / 2;
             const childRightX = childPos.x + TRIANGLE_WIDTH / 2;
+            const childBlueRightTopX = childPos.x - TRIANGLE_WIDTH / 2 + TRIANGLE_WIDTH * 0.1;
+            const childPinkLeftTopX = childPos.x + TRIANGLE_WIDTH / 2 - TRIANGLE_WIDTH * 0.1;
             
-            // Father connection (to left top point)
+            // Father connection (to right top corner of the small blue triangle)
             if (parents.fatherId) {
                 const fatherPos = positions.get(parents.fatherId);
                 console.log(`Father ${parents.fatherId} position:`, fatherPos);
                 if (fatherPos) {
                     const fatherBottomX = fatherPos.x;
                     const fatherBottomY = fatherPos.y + TRIANGLE_HEIGHT;
-                    console.log(`Drawing father line from (${fatherBottomX},${fatherBottomY}) to (${childLeftX},${childTopY})`);
+                    console.log(`Drawing father line from (${fatherBottomX},${fatherBottomY}) to (${childBlueRightTopX},${childTopY})`);
                     lines.push(
                         <line
                             key={`father-${parents.fatherId}-${childId}`}
                             x1={fatherBottomX}
                             y1={fatherBottomY}
-                            x2={childLeftX}
+                            x2={childBlueRightTopX}
                             y2={childTopY}
                             stroke="#2196F3"
                             strokeWidth="2"
@@ -607,20 +609,20 @@ const FamilyTreeCanvas = ({
                 }
             }
             
-            // Mother connection (to right top point)
+            // Mother connection (to left top corner of the small pink triangle)
             if (parents.motherId) {
                 const motherPos = positions.get(parents.motherId);
                 console.log(`Mother ${parents.motherId} position:`, motherPos);
                 if (motherPos) {
                     const motherBottomX = motherPos.x;
                     const motherBottomY = motherPos.y + TRIANGLE_HEIGHT;
-                    console.log(`Drawing mother line from (${motherBottomX},${motherBottomY}) to (${childRightX},${childTopY})`);
+                    console.log(`Drawing mother line from (${motherBottomX},${motherBottomY}) to (${childPinkLeftTopX},${childTopY})`);
                     lines.push(
                         <line
                             key={`mother-${parents.motherId}-${childId}`}
                             x1={motherBottomX}
                             y1={motherBottomY}
-                            x2={childRightX}
+                            x2={childPinkLeftTopX}
                             y2={childTopY}
                             stroke="#E91E63"
                             strokeWidth="2"
