@@ -13,6 +13,7 @@ const FamilyTreeCanvas = ({
     nbrOfParentGenerations = 1, 
     nbrOfChildGenerations = 1,
     treeRefreshTrigger = 0,
+    lastAddedParentId = null,
     onEditPerson,
     onDeletePerson,
     onAddPerson
@@ -69,6 +70,19 @@ const FamilyTreeCanvas = ({
         const newPartnersMap = new Map();
         const newChildrenMap = new Map();
         const newSiblingsMap = new Map();
+        const partnerLookupCache = new Map();
+
+        const arePartners = async (personId, partnerId) => {
+            if (!personId || !partnerId) return false;
+            if (!partnerLookupCache.has(personId)) {
+                const partners = await getPartners(personId);
+                partnerLookupCache.set(
+                    personId,
+                    new Set((partners || []).map(partner => partner.PersonID))
+                );
+            }
+            return partnerLookupCache.get(personId).has(partnerId);
+        };
 
         // Helper to add person to data
         const addPerson = async (personId, generation) => {
@@ -197,8 +211,8 @@ const FamilyTreeCanvas = ({
                     await buildUpward(motherId, currentGen + 1);
                 }
                 
-                // If both parents exist, they are partners
-                if (fatherId && motherId) {
+                // Only set partners when DB confirms the relationship
+                if (fatherId && motherId && await arePartners(fatherId, motherId)) {
                     if (!newPartnersMap.has(fatherId)) {
                         newPartnersMap.set(fatherId, []);
                     }
@@ -251,8 +265,8 @@ const FamilyTreeCanvas = ({
                         await addPerson(childMotherId, -depth);
                     }
                     
-                    // If both parents exist, they are partners
-                    if (childFatherId && childMotherId) {
+                    // Only set partners when DB confirms the relationship
+                    if (childFatherId && childMotherId && await arePartners(childFatherId, childMotherId)) {
                         if (!newPartnersMap.has(childFatherId)) {
                             newPartnersMap.set(childFatherId, []);
                         }
@@ -274,9 +288,60 @@ const FamilyTreeCanvas = ({
             }
         };
 
+        const includeChildrenForParent = async (parentId) => {
+            const parentData = newFamilyData.get(parentId);
+            if (!parentData) return;
+
+            const childrenData = await getChildren(parentId);
+            if (!childrenData || childrenData.length === 0) return;
+
+            const childIds = childrenData.map(child => child.PersonID);
+            newChildrenMap.set(parentId, childIds);
+
+            for (const child of childrenData) {
+                const childGeneration = parentData.generation - 1;
+                await addPerson(child.PersonID, childGeneration);
+
+                const childFatherId = await getFather(child.PersonID);
+                const childMotherId = await getMother(child.PersonID);
+
+                newParentsMap.set(child.PersonID, {
+                    fatherId: childFatherId || null,
+                    motherId: childMotherId || null
+                });
+
+                if (childFatherId && !newFamilyData.has(childFatherId)) {
+                    await addPerson(childFatherId, childGeneration + 1);
+                }
+                if (childMotherId && !newFamilyData.has(childMotherId)) {
+                    await addPerson(childMotherId, childGeneration + 1);
+                }
+
+                if (childFatherId && childMotherId && await arePartners(childFatherId, childMotherId)) {
+                    if (!newPartnersMap.has(childFatherId)) {
+                        newPartnersMap.set(childFatherId, []);
+                    }
+                    if (!newPartnersMap.get(childFatherId).includes(childMotherId)) {
+                        newPartnersMap.get(childFatherId).push(childMotherId);
+                    }
+
+                    if (!newPartnersMap.has(childMotherId)) {
+                        newPartnersMap.set(childMotherId, []);
+                    }
+                    if (!newPartnersMap.get(childMotherId).includes(childFatherId)) {
+                        newPartnersMap.get(childMotherId).push(childFatherId);
+                    }
+                }
+            }
+        };
+
         // Build the tree
         await buildUpward(rootPerson.PersonID, 0);
         await buildDownward(rootPerson.PersonID, 0);
+
+        if (lastAddedParentId && newFamilyData.has(lastAddedParentId)) {
+            await includeChildrenForParent(lastAddedParentId);
+        }
 
         console.log('Family data collected:', newFamilyData.size, 'persons');
         console.log('Relationships parents:', Array.from(newParentsMap.entries()));
@@ -295,7 +360,7 @@ const FamilyTreeCanvas = ({
         setSiblingsMap(newSiblingsMap);
         setPositions(newPositions);
         setCanvasSize(canvasDimensions);
-    }, [rootPerson, nbrOfParentGenerations, nbrOfChildGenerations, treeRefreshTrigger]);
+    }, [rootPerson, nbrOfParentGenerations, nbrOfChildGenerations, treeRefreshTrigger, lastAddedParentId]);
 
     /**
      * Calculate positions for all persons
@@ -760,6 +825,7 @@ FamilyTreeCanvas.propTypes = {
     nbrOfParentGenerations: PropTypes.number,
     nbrOfChildGenerations: PropTypes.number,
     treeRefreshTrigger: PropTypes.number,
+    lastAddedParentId: PropTypes.number,
     onEditPerson: PropTypes.func,
     onDeletePerson: PropTypes.func,
     onAddPerson: PropTypes.func,

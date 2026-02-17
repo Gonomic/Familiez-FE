@@ -147,6 +147,72 @@ export const getChildren = async (personId) => {
 };
 
 /**
+ * Get possible mothers based on a child's birth date
+ * @param {string} personDateOfBirth - Birth date (YYYY-MM-DD)
+ * @returns {Promise<Array>} Array of possible mothers
+ */
+export const getPossibleMothersBasedOnAge = async (personDateOfBirth) => {
+    if (!personDateOfBirth) return [];
+    try {
+        const encodedDate = encodeURIComponent(personDateOfBirth);
+        const url = `${MW_BASE_URL}/GetPossibleMothersBasedOnAge?personDateOfBirth=${encodedDate}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        if (data[0].numberOfRecords >= 1) {
+            return data.slice(1);
+        }
+        return [];
+    } catch (error) {
+        console.error('Error getting possible mothers based on age:', error);
+        return [];
+    }
+};
+
+/**
+ * Get possible fathers based on a child's birth date
+ * @param {string} personDateOfBirth - Birth date (YYYY-MM-DD)
+ * @returns {Promise<Array>} Array of possible fathers
+ */
+export const getPossibleFathersBasedOnAge = async (personDateOfBirth) => {
+    if (!personDateOfBirth) return [];
+    try {
+        const encodedDate = encodeURIComponent(personDateOfBirth);
+        const url = `${MW_BASE_URL}/GetPossibleFathersBasedOnAge?personDateOfBirth=${encodedDate}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        if (data[0].numberOfRecords >= 1) {
+            return data.slice(1);
+        }
+        return [];
+    } catch (error) {
+        console.error('Error getting possible fathers based on age:', error);
+        return [];
+    }
+};
+
+/**
+ * Get possible partners based on a person's birth date
+ * @param {string} personDateOfBirth - Birth date (YYYY-MM-DD)
+ * @returns {Promise<Array>} Array of possible partners
+ */
+export const getPossiblePartnersBasedOnAge = async (personDateOfBirth) => {
+    if (!personDateOfBirth) return [];
+    try {
+        const encodedDate = encodeURIComponent(personDateOfBirth);
+        const url = `${MW_BASE_URL}/GetPossiblePartnersBasedOnAge?personDateOfBirth=${encodedDate}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        if (data[0].numberOfRecords >= 1) {
+            return data.slice(1);
+        }
+        return [];
+    } catch (error) {
+        console.error('Error getting possible partners based on age:', error);
+        return [];
+    }
+};
+
+/**
  * Update person details
  * @param {number} personId - The ID of the person
  * @param {Object} personData - The updated person data

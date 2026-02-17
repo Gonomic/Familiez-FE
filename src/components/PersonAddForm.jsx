@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Box, TextField, Button, Typography, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio } from '@mui/material';
+import { Box, TextField, Button, Typography, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, MenuItem } from '@mui/material';
 import PropTypes from 'prop-types';
-import { addPerson } from '../services/familyDataService';
+import { addPerson, getPossibleMothersBasedOnAge, getPossibleFathersBasedOnAge, getPossiblePartnersBasedOnAge, getChildren } from '../services/familyDataService';
 
 /**
  * PersonAddForm Component
@@ -17,10 +17,17 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
         PersonPlaceOfDeath: '',
         FatherId: null,
         MotherId: null,
+        PartnerId: null,
         PersonIsMale: '',
     });
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState(null);
+    const [possibleMothers, setPossibleMothers] = useState([]);
+    const [isLoadingMothers, setIsLoadingMothers] = useState(false);
+    const [possibleFathers, setPossibleFathers] = useState([]);
+    const [isLoadingFathers, setIsLoadingFathers] = useState(false);
+    const [possiblePartners, setPossiblePartners] = useState([]);
+    const [isLoadingPartners, setIsLoadingPartners] = useState(false);
 
     // Determine if parent is father or mother based on gender
     const initializeFatherMother = () => {
@@ -43,6 +50,118 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
     useEffect(() => {
         initializeFatherMother();
     }, [parentPerson]);
+
+    useEffect(() => {
+        const shouldFetchMothers = parentPerson?.PersonIsMale && formData.PersonDateOfBirth;
+        if (!shouldFetchMothers) {
+            setPossibleMothers([]);
+            return;
+        }
+
+        let isCancelled = false;
+        const fetchPossibleMothers = async () => {
+            setIsLoadingMothers(true);
+            try {
+                const mothers = await getPossibleMothersBasedOnAge(formData.PersonDateOfBirth);
+                if (!isCancelled) {
+                    setPossibleMothers(mothers);
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoadingMothers(false);
+                }
+            }
+        };
+
+        fetchPossibleMothers();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [parentPerson, formData.PersonDateOfBirth]);
+
+    useEffect(() => {
+        if (!formData.PersonDateOfBirth) {
+            setPossiblePartners([]);
+            return;
+        }
+
+        let isCancelled = false;
+        const fetchPossiblePartners = async () => {
+            setIsLoadingPartners(true);
+            try {
+                const parentIds = [formData.FatherId, formData.MotherId].filter(Boolean);
+                const childrenByParent = await Promise.all(
+                    parentIds.map(parentId => getChildren(parentId))
+                );
+                const siblingIds = new Set(
+                    childrenByParent.flat().map(child => child.PersonID)
+                );
+                parentIds.forEach(parentId => siblingIds.add(parentId));
+
+                const partners = await getPossiblePartnersBasedOnAge(formData.PersonDateOfBirth);
+                const birthYear = new Date(formData.PersonDateOfBirth).getFullYear();
+
+                const filteredPartners = partners.filter(partner => {
+                    const partnerId = partner.PossiblePartnerID || partner.PersonID;
+                    if (!partnerId || siblingIds.has(partnerId)) return false;
+
+                    const rawDate = partner.SortDate || partner.PersonDateOfBirth || '';
+                    const normalizedDate = typeof rawDate === 'string'
+                        ? rawDate.replace(/[()]/g, '')
+                        : rawDate;
+                    const partnerYear = normalizedDate ? new Date(normalizedDate).getFullYear() : NaN;
+                    if (!Number.isFinite(partnerYear)) return false;
+
+                    return Math.abs(partnerYear - birthYear) <= 60;
+                });
+
+                if (!isCancelled) {
+                    setPossiblePartners(filteredPartners);
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoadingPartners(false);
+                }
+            }
+        };
+
+        fetchPossiblePartners();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [formData.PersonDateOfBirth, formData.FatherId, formData.MotherId]);
+
+    useEffect(() => {
+        const isMother = parentPerson && (parentPerson.PersonIsMale === false || parentPerson.PersonIsMale === 0);
+        const shouldFetchFathers = isMother && formData.PersonDateOfBirth;
+        if (!shouldFetchFathers) {
+            setPossibleFathers([]);
+            return;
+        }
+
+        let isCancelled = false;
+        const fetchPossibleFathers = async () => {
+            setIsLoadingFathers(true);
+            try {
+                const fathers = await getPossibleFathersBasedOnAge(formData.PersonDateOfBirth);
+                if (!isCancelled) {
+                    setPossibleFathers(fathers);
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoadingFathers(false);
+                }
+            }
+        };
+
+        fetchPossibleFathers();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [parentPerson, formData.PersonDateOfBirth]);
 
     const handleChange = (field) => (event) => {
         setFormData(prev => ({
@@ -85,6 +204,7 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
                 PersonPlaceOfDeath: formData.PersonPlaceOfDeath || null,
                 FatherId: formData.FatherId || null,
                 MotherId: formData.MotherId || null,
+                PartnerId: formData.PartnerId || null,
                 PersonIsMale: personIsMaleValue,
             };
             
@@ -202,23 +322,113 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
                 </RadioGroup>
             </FormControl>
 
-            <TextField
-                label="Vader ID"
-                value={formData.FatherId || ''}
-                type="number"
-                fullWidth
-                disabled
-                helperText="Automatisch ingesteld"
-            />
+            {parentPerson?.PersonIsMale ? (
+                <>
+                    <TextField
+                        label="Vader"
+                        value={parentPerson ? `${parentPerson.PersonGivvenName || ''} ${parentPerson.PersonFamilyName || ''}`.trim() : ''}
+                        fullWidth
+                        disabled
+                        helperText="Automatisch ingesteld"
+                    />
+                    <TextField
+                        label="Moeder"
+                        value={formData.MotherId || ''}
+                        onChange={handleChange('MotherId')}
+                        select
+                        fullWidth
+                        disabled={isSaving || isLoadingMothers || !formData.PersonDateOfBirth}
+                        helperText={
+                            formData.PersonDateOfBirth
+                                ? 'Kies een moeder (15-50 jaar ouder)'
+                                : 'Vul eerst de geboortedatum van het kind in'
+                        }
+                    >
+                        <MenuItem value="">
+                            Geen selectie
+                        </MenuItem>
+                        {possibleMothers.map((mother) => (
+                            <MenuItem key={mother.PossibleMotherID || mother.PersonID} value={mother.PossibleMotherID || mother.PersonID}>
+                                {mother.PossibleMother || `${mother.PersonGivvenName || ''} ${mother.PersonFamilyName || ''}`.trim()}
+                            </MenuItem>
+                        ))}
+                    </TextField>
+                </>
+            ) : parentPerson ? (
+                <>
+                    <TextField
+                        label="Moeder"
+                        value={parentPerson ? `${parentPerson.PersonGivvenName || ''} ${parentPerson.PersonFamilyName || ''}`.trim() : ''}
+                        fullWidth
+                        disabled
+                        helperText="Automatisch ingesteld"
+                    />
+                    <TextField
+                        label="Vader"
+                        value={formData.FatherId || ''}
+                        onChange={handleChange('FatherId')}
+                        select
+                        fullWidth
+                        disabled={isSaving || isLoadingFathers || !formData.PersonDateOfBirth}
+                        helperText={
+                            formData.PersonDateOfBirth
+                                ? 'Kies een vader (15-50 jaar ouder)'
+                                : 'Vul eerst de geboortedatum van het kind in'
+                        }
+                    >
+                        <MenuItem value="">
+                            Geen selectie
+                        </MenuItem>
+                        {possibleFathers.map((father) => (
+                            <MenuItem key={father.PossibleFatherID || father.PersonID} value={father.PossibleFatherID || father.PersonID}>
+                                {father.PossibleFather || `${father.PersonGivvenName || ''} ${father.PersonFamilyName || ''}`.trim()}
+                            </MenuItem>
+                        ))}
+                    </TextField>
+                </>
+            ) : (
+                <>
+                    <TextField
+                        label="Vader ID"
+                        value={formData.FatherId || ''}
+                        type="number"
+                        fullWidth
+                        disabled
+                        helperText="Automatisch ingesteld"
+                    />
+                    <TextField
+                        label="Moeder ID"
+                        value={formData.MotherId || ''}
+                        type="number"
+                        fullWidth
+                        disabled
+                        helperText="Automatisch ingesteld"
+                    />
+                </>
+            )}
 
             <TextField
-                label="Moeder ID"
-                value={formData.MotherId || ''}
-                type="number"
+                label="Partner"
+                value={formData.PartnerId || ''}
+                onChange={handleChange('PartnerId')}
+                select
                 fullWidth
-                disabled
-                helperText="Automatisch ingesteld"
-            />
+                disabled={isSaving || isLoadingPartners || !formData.PersonDateOfBirth}
+                helperText={
+                    formData.PersonDateOfBirth
+                        ? 'Kies een partner (max 60 jaar leeftijdsverschil)'
+                        : 'Vul eerst de geboortedatum van de persoon in'
+                }
+            >
+                <MenuItem value="">
+                    Geen selectie
+                </MenuItem>
+                {possiblePartners.map((partner) => (
+                    <MenuItem key={partner.PossiblePartnerID || partner.PersonID} value={partner.PossiblePartnerID || partner.PersonID}>
+                        {partner.PossiblePartner || `${partner.PersonGivvenName || ''} ${partner.PersonFamilyName || ''}`.trim()}
+                    </MenuItem>
+                ))}
+            </TextField>
 
             <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
                 <Button
@@ -247,6 +457,8 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
 PersonAddForm.propTypes = {
     parentPerson: PropTypes.shape({
         PersonID: PropTypes.number.isRequired,
+        PersonGivvenName: PropTypes.string,
+        PersonFamilyName: PropTypes.string,
         PersonIsMale: PropTypes.bool,
     }),
     onAdd: PropTypes.func,

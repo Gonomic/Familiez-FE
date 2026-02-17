@@ -7,6 +7,7 @@ const FamiliezBewerken = ({
     nbrOfParentGenerations, 
     nbrOfChildGenerations,
     treeRefreshTrigger,
+    lastAddedParentId,
     onEditPerson,
     onDeletePerson,
     onAddPerson
@@ -26,6 +27,7 @@ const FamiliezBewerken = ({
                 nbrOfParentGenerations={nbrOfParentGenerations}
                 nbrOfChildGenerations={nbrOfChildGenerations}
                 treeRefreshTrigger={treeRefreshTrigger}
+                lastAddedParentId={lastAddedParentId}
                 onEditPerson={onEditPerson}
                 onDeletePerson={onDeletePerson}
                 onAddPerson={onAddPerson}
@@ -39,6 +41,7 @@ FamiliezBewerken.propTypes = {
     nbrOfParentGenerations: PropTypes.number,
     nbrOfChildGenerations: PropTypes.number,
     treeRefreshTrigger: PropTypes.number,
+    lastAddedParentId: PropTypes.number,
     onEditPerson: PropTypes.func,
     onDeletePerson: PropTypes.func,
     onAddPerson: PropTypes.func,

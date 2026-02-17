@@ -19,6 +19,7 @@ const App = () => {
   const [nbrOfParentGenerations, setNbrOfParentGenerations] = useState(1);
   const [nbrOfChildGenerations, setNbrOfChildGenerations] = useState(1);
   const [treeRefreshTrigger, setTreeRefreshTrigger] = useState(0);
+  const [lastAddedParentId, setLastAddedParentId] = useState(null);
 
   const toggleLeftDrawer = () => {
     setLeftDrawerOpen(!leftDrawerOpen);
@@ -78,6 +79,9 @@ const App = () => {
     // Trigger tree refresh after adding a person
     if (newPerson) {
       setTreeRefreshTrigger(prev => prev + 1);
+      if (personToAdd?.PersonID) {
+        setLastAddedParentId(personToAdd.PersonID);
+      }
     }
     // Clear add mode
     setPersonToAdd(null);
@@ -116,6 +120,7 @@ const App = () => {
               nbrOfParentGenerations={nbrOfParentGenerations}
               nbrOfChildGenerations={nbrOfChildGenerations}
               treeRefreshTrigger={treeRefreshTrigger}
+              lastAddedParentId={lastAddedParentId}
               onEditPerson={handleEditPerson}
               onDeletePerson={handleDeletePerson}
               onAddPerson={handleAddPerson}
