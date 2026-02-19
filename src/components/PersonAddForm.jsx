@@ -459,7 +459,7 @@ PersonAddForm.propTypes = {
         PersonID: PropTypes.number.isRequired,
         PersonGivvenName: PropTypes.string,
         PersonFamilyName: PropTypes.string,
-        PersonIsMale: PropTypes.bool,
+        PersonIsMale: PropTypes.oneOfType([PropTypes.bool, PropTypes.number]),
     }),
     onAdd: PropTypes.func,
     onCancel: PropTypes.func,

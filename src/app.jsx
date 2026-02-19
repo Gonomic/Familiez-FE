@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate, useNavigate } from 'react-router-dom';
 import TopBar from './TopBar';
 import LeftDrawer from './LeftDrawer';
 import RightDrawer from './RightDrawer';
@@ -9,13 +9,14 @@ import FamiliezBewerken from './FamiliezBewerken';
 import FamiliezInfo from './FamiliezInfo';
 import FamiliezSysteem from './FamiliezSysteem';
 
-const App = () => {
+const AppContent = () => {
+  const navigate = useNavigate();
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [personToEdit, setPersonToEdit] = useState(null);
   const [personToDelete, setPersonToDelete] = useState(null);
-  const [personToAdd, setPersonToAdd] = useState(null);
+  const [personToAdd, setPersonToAdd] = useState(undefined);
   const [nbrOfParentGenerations, setNbrOfParentGenerations] = useState(1);
   const [nbrOfChildGenerations, setNbrOfChildGenerations] = useState(1);
   const [treeRefreshTrigger, setTreeRefreshTrigger] = useState(0);
@@ -78,13 +79,22 @@ const App = () => {
   const handlePersonAdded = (newPerson) => {
     // Trigger tree refresh after adding a person
     if (newPerson) {
+      // If no person was selected, set the new person as selected
+      if (!selectedPerson) {
+        setSelectedPerson(newPerson);
+        setNbrOfParentGenerations(1);
+        setNbrOfChildGenerations(1);
+        // Navigate to the tree view to show the new person
+        navigate('/familiez-bewerken');
+      }
       setTreeRefreshTrigger(prev => prev + 1);
       if (personToAdd?.PersonID) {
         setLastAddedParentId(personToAdd.PersonID);
       }
     }
-    // Clear add mode
+    // Clear add mode and close drawer
     setPersonToAdd(null);
+    setRightDrawerOpen(false);
   };
 
   const handlePersonDeleted = () => {
@@ -96,7 +106,7 @@ const App = () => {
 
 
   return (
-    <Router>
+    <>
       <TopBar toggleLeftDrawer={toggleLeftDrawer} toggleRightDrawer={toggleRightDrawer} />
       <LeftDrawer open={leftDrawerOpen} onClose={handleLeftDrawerClose} />
       <RightDrawer 
@@ -109,6 +119,7 @@ const App = () => {
         onPersonUpdated={handlePersonUpdated}
         onPersonAdded={handlePersonAdded}
         onPersonDeleted={handlePersonDeleted}
+        onAddPersonClick={handleAddPerson}
       />
 
       <Routes>
@@ -133,6 +144,14 @@ const App = () => {
       </Routes>
 
       <Footer />
+    </>
+  );
+}
+
+const App = () => {
+  return (
+    <Router>
+      <AppContent />
     </Router>
   );
 }

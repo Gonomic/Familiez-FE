@@ -10,7 +10,7 @@ import PersonDeleteForm from './components/PersonDeleteForm';
 import PersonAddForm from './components/PersonAddForm';
 import { getPersonsLike } from './services/familyDataService';
 
-function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUpdated, personToDelete, personToAdd, onPersonAdded, onPersonDeleted }) {
+function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUpdated, personToDelete, personToAdd, onPersonAdded, onPersonDeleted, onAddPersonClick }) {
     const navigate = useNavigate();
     const [person, setPerson] = useState(null);
     const [persons, setPersons] = useState([]);
@@ -25,7 +25,7 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
     useEffect(() => {
         if (personToDelete) {
             setMode('delete');
-        } else if (personToAdd) {
+        } else if (personToAdd !== undefined) {
             setMode('add');
         } else if (personToEdit) {
             setMode('edit');
@@ -71,6 +71,19 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
             onPersonSelected(person, parentGens, childGens);
             navigate('/familiez-bewerken');
             onClose();
+        }
+    };
+
+    // Handle adding a new person
+    const handleAddPersonClick = () => {
+        // Allow adding a person with or without a parent
+        if (onAddPersonClick) {
+            // Convert PersonIsMale from number to boolean if person exists
+            const personToPass = person ? {
+                ...person,
+                PersonIsMale: Boolean(person.PersonIsMale)
+            } : null;
+            onAddPersonClick(personToPass);
         }
     };
 
@@ -201,6 +214,15 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
                             >
                                 Toon Stamboom
                             </Button>
+                            <Button 
+                                variant="outlined" 
+                                color="primary"
+                                onClick={handleAddPersonClick}
+                                fullWidth
+                                sx={{ mt: 2 }}
+                            >
+                                Persoon toevoegen
+                            </Button>
                         </>
                     ) : mode === 'delete' ? (
                         <>
@@ -243,6 +265,7 @@ RightDrawer.propTypes = {
     personToAdd: PropTypes.object,
     onPersonAdded: PropTypes.func,
     onPersonDeleted: PropTypes.func,
+    onAddPersonClick: PropTypes.func,
 };
 
 export default RightDrawer;
