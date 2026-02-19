@@ -213,6 +213,27 @@ export const getPossiblePartnersBasedOnAge = async (personDateOfBirth) => {
 };
 
 /**
+ * Get releases for a component
+ * @param {string} component - fe, mw, or be
+ * @returns {Promise<Array>} Array of releases
+ */
+export const getReleases = async (component) => {
+    if (!component) return [];
+    try {
+        const url = `${MW_BASE_URL}/GetReleases?component=${component}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to load releases: ${response.status}`);
+        }
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
+    } catch (error) {
+        console.error('Error getting releases:', error);
+        throw error;
+    }
+};
+
+/**
  * Update person details
  * @param {number} personId - The ID of the person
  * @param {Object} personData - The updated person data
