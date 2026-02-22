@@ -3,7 +3,25 @@
  * Handles all API calls to the middleware (MW) server
  */
 
+import { getStoredToken, setAuthHeader } from "./authService";
+
 const MW_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+const buildAuthHeaders = () => {
+    const token = getStoredToken();
+    return token ? setAuthHeader(token) : {};
+};
+
+const fetchWithAuth = (url, options = {}) => {
+    const headers = {
+        ...buildAuthHeaders(),
+        ...(options.headers || {}),
+    };
+    return window.fetch(url, { ...options, headers });
+};
+
+// Use a local fetch wrapper that injects Authorization headers.
+const fetch = fetchWithAuth;
 
 /**
  * Get persons with names similar to the search string
