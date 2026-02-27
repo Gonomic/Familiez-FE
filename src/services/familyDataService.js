@@ -23,6 +23,9 @@ const fetchWithAuth = (url, options = {}) => {
 // Use a local fetch wrapper that injects Authorization headers.
 const fetch = fetchWithAuth;
 
+export const getMwBaseUrl = () => MW_BASE_URL;
+export const fetchWithAuthHeaders = fetchWithAuth;
+
 /**
  * Get persons with names similar to the search string
  * @param {string} searchString - The string to search for
