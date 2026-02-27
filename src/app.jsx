@@ -109,7 +109,7 @@ const AppContent = () => {
     // Clear edit/delete/add modes when drawer closes
     setPersonToEdit(null);
     setPersonToDelete(null);
-    setPersonToAdd(null);
+    setPersonToAdd(undefined);
   };
 
   const handlePersonSelected = (person, parentGens, childGens) => {
@@ -144,7 +144,7 @@ const AppContent = () => {
     }
     // Clear edit mode and close drawer
     setPersonToEdit(null);
-    setPersonToAdd(null);
+    setPersonToAdd(undefined);
     setPersonToDelete(null);
     setRightDrawerOpen(false);
   };
@@ -166,7 +166,7 @@ const AppContent = () => {
       }
     }
     // Clear add mode and close drawer
-    setPersonToAdd(null);
+    setPersonToAdd(undefined);
     setRightDrawerOpen(false);
   };
 
@@ -176,7 +176,7 @@ const AppContent = () => {
     // Clear delete mode and close drawer
     setPersonToDelete(null);
     setPersonToEdit(null);
-    setPersonToAdd(null);
+    setPersonToAdd(undefined);
     setRightDrawerOpen(false);
   };
 
