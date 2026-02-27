@@ -25,10 +25,10 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
     useEffect(() => {
         if (personToDelete) {
             setMode('delete');
-        } else if (personToAdd !== undefined) {
-            setMode('add');
         } else if (personToEdit) {
             setMode('edit');
+        } else if (personToAdd !== undefined) {
+            setMode('add');
         } else {
             setMode('select');
         }
@@ -128,6 +128,7 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
     // Handle canceling delete
     const handleCancelDelete = () => {
         setMode('select');
+        onClose();
     };
 
     // Handle person added
@@ -142,6 +143,7 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
     // Handle canceling add
     const handleCancelAdd = () => {
         setMode('select');
+        onClose();
     };
 
     // Cleanup debounced function on unmount

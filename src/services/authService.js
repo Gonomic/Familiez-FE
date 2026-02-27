@@ -1,3 +1,5 @@
+import { sha256 } from 'js-sha256';
+
 const STORAGE_TOKEN_KEY = "familiez_access_token";
 const STORAGE_STATE_KEY = "familiez_oauth_state";
 const STORAGE_PKCE_KEY = "familiez_pkce_verifier";
@@ -7,18 +9,37 @@ const notifyAuthChange = () => {
   window.dispatchEvent(new Event(AUTH_EVENT));
 };
 
+// Cookie helpers for OAuth state that persists across redirects
+const setCookie = (name, value, maxAgeSeconds = 600) => {
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
+};
+
+const getCookie = (name) => {
+  const value = document.cookie
+    .split('; ')
+    .find(row => row.startsWith(`${name}=`))
+    ?.split('=')[1];
+  return value ? decodeURIComponent(value) : null;
+};
+
+const deleteCookie = (name) => {
+  document.cookie = `${name}=; path=/; max-age=0`;
+};
+
 const getEnv = (name) => {
   const value = import.meta.env[name];
   return value ? String(value).trim() : "";
 };
 
-const getAuthConfig = () => ({
-  authBaseUrl: getEnv("VITE_SYNOLOGY_AUTH_URL"),
-  clientId: getEnv("VITE_CLIENT_ID"),
-  redirectUri: getEnv("VITE_REDIRECT_URI"),
-  discoveryUrl: getEnv("VITE_SYNOLOGY_DISCOVERY_URL"),
-  apiBaseUrl: getEnv("VITE_API_BASE"),
-});
+const getAuthConfig = () => {
+  return {
+    authBaseUrl: getEnv("VITE_SYNOLOGY_AUTH_URL"),
+    clientId: getEnv("VITE_CLIENT_ID"),
+    redirectUri: getEnv("VITE_REDIRECT_URI"),
+    discoveryUrl: getEnv("VITE_SYNOLOGY_DISCOVERY_URL"),
+    apiBaseUrl: getEnv("VITE_API_BASE"),
+  };
+};
 
 const randomString = (length = 32) => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -29,22 +50,19 @@ const randomString = (length = 32) => {
   return result;
 };
 
-const sha256 = async (plain) => {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(plain);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return new Uint8Array(hash);
-};
-
-const base64UrlEncode = (buffer) =>
-  btoa(String.fromCharCode(...buffer))
+const base64UrlEncode = (str) => {
+  // Convert hex string to base64url
+  const bytes = str.match(/.{1,2}/g).map(byte => parseInt(byte, 16));
+  const base64 = btoa(String.fromCharCode(...bytes));
+  return base64
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/g, "");
+};
 
 const getDiscovery = async () => {
-  const { discoveryUrl, authBaseUrl } = getAuthConfig();
-  if (!discoveryUrl) {
+  const { apiBaseUrl, authBaseUrl } = getAuthConfig();
+  if (!apiBaseUrl) {
     return null;
   }
 
@@ -58,7 +76,8 @@ const getDiscovery = async () => {
     }
   }
 
-  const response = await fetch(discoveryUrl, { cache: "no-store" });
+  // Fetch discovery from middleware to avoid CORS issues
+  const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/auth/discovery`, { cache: "no-store" });
   if (!response.ok) {
     throw new Error("Failed to fetch OIDC discovery document");
   }
@@ -80,15 +99,14 @@ export const initiateSSOLogin = async () => {
 
   const state = randomString(24);
   const codeVerifier = randomString(64);
-  const codeChallenge = base64UrlEncode(await sha256(codeVerifier));
+  // Note: Synology SSO doesn't support PKCE, so we won't use code_challenge
+  
+  // Use cookies instead of localStorage for better cross-domain redirect support
+  setCookie(STORAGE_STATE_KEY, state, 600); // 10 minute expiry
+  setCookie(STORAGE_PKCE_KEY, codeVerifier, 600);
 
-  sessionStorage.setItem(STORAGE_STATE_KEY, state);
-  sessionStorage.setItem(STORAGE_PKCE_KEY, codeVerifier);
-
-  const discovery = await getDiscovery();
-  const authorizeUrl = discovery?.authorization_endpoint
-    ? discovery.authorization_endpoint
-    : `${authBaseUrl.replace(/\/$/, "")}/oauth/authorize`;
+  // Use known Synology OAuth endpoint (standard for all Synology SSO Server installations)
+  const authorizeUrl = `${authBaseUrl.replace(/\/$/, "")}/webman/sso/SSOOauth.cgi`;
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -96,11 +114,11 @@ export const initiateSSOLogin = async () => {
     response_type: "code",
     scope: "openid email",
     state,
-    code_challenge: codeChallenge,
-    code_challenge_method: "S256",
+    // Synology doesn't support PKCE, so we don't include code_challenge parameters
   });
 
-  window.location.assign(`${authorizeUrl}?${params.toString()}`);
+  const authUrl = `${authorizeUrl}?${params.toString()}`;
+  window.location.assign(authUrl);
 };
 
 export const exchangeCodeForToken = async (code, state) => {
@@ -109,20 +127,19 @@ export const exchangeCodeForToken = async (code, state) => {
     throw new Error("Missing VITE_API_BASE env");
   }
 
-  const expectedState = sessionStorage.getItem(STORAGE_STATE_KEY);
-  if (!expectedState || state !== expectedState) {
-    throw new Error("Invalid OAuth state");
+  const expectedState = getCookie(STORAGE_STATE_KEY);
+
+  if (!expectedState) {
+    throw new Error("Invalid OAuth state - state not found in storage");
   }
 
-  const codeVerifier = sessionStorage.getItem(STORAGE_PKCE_KEY);
-  if (!codeVerifier) {
-    throw new Error("Missing PKCE verifier");
+  if (state !== expectedState) {
+    throw new Error("Invalid OAuth state - state mismatch");
   }
-
   const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/auth/callback`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code, codeVerifier }),
+    body: JSON.stringify({ code }),
   });
 
   if (!response.ok) {
@@ -130,12 +147,16 @@ export const exchangeCodeForToken = async (code, state) => {
   }
 
   const data = await response.json();
+  
   if (!data.access_token) {
     throw new Error("Token response missing access_token");
   }
 
-  sessionStorage.removeItem(STORAGE_STATE_KEY);
-  sessionStorage.removeItem(STORAGE_PKCE_KEY);
+  // Clean up OAuth cookies
+  deleteCookie(STORAGE_STATE_KEY);
+  deleteCookie(STORAGE_PKCE_KEY);
+  
+  // Store access token in localStorage
   localStorage.setItem(STORAGE_TOKEN_KEY, data.access_token);
   notifyAuthChange();
   return data.access_token;

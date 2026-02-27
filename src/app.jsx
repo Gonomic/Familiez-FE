@@ -109,8 +109,11 @@ const AppContent = () => {
       // Trigger tree refresh
       setTreeRefreshTrigger(prev => prev + 1);
     }
-    // Clear edit mode
+    // Clear edit mode and close drawer
     setPersonToEdit(null);
+    setPersonToAdd(null);
+    setPersonToDelete(null);
+    setRightDrawerOpen(false);
   };
 
   const handlePersonAdded = (newPerson) => {
@@ -137,8 +140,11 @@ const AppContent = () => {
   const handlePersonDeleted = () => {
     // Trigger tree refresh after deletion
     setTreeRefreshTrigger(prev => prev + 1);
-    // Clear delete mode
+    // Clear delete mode and close drawer
     setPersonToDelete(null);
+    setPersonToEdit(null);
+    setPersonToAdd(null);
+    setRightDrawerOpen(false);
   };
 
   return (

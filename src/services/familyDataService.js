@@ -5,7 +5,7 @@
 
 import { getStoredToken, setAuthHeader } from "./authService";
 
-const MW_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const MW_BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
 const buildAuthHeaders = () => {
     const token = getStoredToken();

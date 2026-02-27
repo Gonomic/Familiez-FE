@@ -18,9 +18,11 @@ const AuthCallback = () => {
     }
 
     exchangeCodeForToken(code, state)
-      .then(() => navigate("/familiez-bewerken", { replace: true }))
+      .then(() => {
+        navigate("/familiez-bewerken", { replace: true });
+      })
       .catch((err) => {
-        console.error(err);
+        console.error("Authentication error:", err);
         setError("Authentication failed. Please try again.");
       });
   }, [navigate]);

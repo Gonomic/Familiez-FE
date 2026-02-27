@@ -25,13 +25,16 @@ function TopBar({ toggleLeftDrawer, toggleRightDrawer }) {
     }, []);
 
     const handleAuthClick = () => {
+        console.log("[TopBar] Auth button clicked, authenticated:", isAuthenticated);
         if (isAuthenticated) {
             clearStoredToken();
             return;
         }
 
+        console.log("[TopBar] Starting SSO login...");
         initiateSSOLogin().catch((error) => {
-            console.error('SSO login failed:', error);
+            console.error('[TopBar] SSO login failed:', error);
+            alert(`Login failed: ${error.message}`);
         });
     };
 
