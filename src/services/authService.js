@@ -169,6 +169,12 @@ export const clearStoredToken = () => {
   notifyAuthChange();
 };
 
+// Dispatch auth error event when token is invalid/expired
+export const notifyAuthError = (message = "Sessie verlopen. Controleer uw inloggegevens.") => {
+  const event = new CustomEvent('familiez-auth-error', { detail: { message } });
+  window.dispatchEvent(event);
+};
+
 export const setAuthHeader = (token) => ({
   Authorization: `Bearer ${token}`,
 });

@@ -3,13 +3,19 @@
  * Handles all API calls to the middleware (MW) server
  */
 
-import { getStoredToken, setAuthHeader } from "./authService";
+import { getStoredToken, setAuthHeader, notifyAuthError, clearStoredToken } from "./authService";
 
 const MW_BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
 const buildAuthHeaders = () => {
     const token = getStoredToken();
-    return token ? setAuthHeader(token) : {};
+    if (!token) {
+        console.warn('[familyDataService] No auth token found in localStorage');
+        return {};
+    }
+    const headers = setAuthHeader(token);
+    console.debug('[familyDataService] Auth headers built, token length:', token.length);
+    return headers;
 };
 
 const fetchWithAuth = (url, options = {}) => {
@@ -17,6 +23,8 @@ const fetchWithAuth = (url, options = {}) => {
         ...buildAuthHeaders(),
         ...(options.headers || {}),
     };
+    const hasAuthHeader = 'Authorization' in headers;
+    console.debug('[familyDataService] Request to:', url, 'Has Auth:', hasAuthHeader);
     return window.fetch(url, { ...options, headers });
 };
 
@@ -36,7 +44,29 @@ export const getPersonsLike = async (searchString) => {
     try {
         const url = `${MW_BASE_URL}/GetPersonsLike?stringToSearchFor=${searchString}`;
         const response = await fetch(url);
+        
+        // Handle 401 Unauthorized (expired token)
+        if (response.status === 401) {
+            clearStoredToken();
+            notifyAuthError("Uw sessie is verlopen. Meld u alstublieft opnieuw aan.");
+            console.warn('Auth token expired, clearing and notifying user');
+            return [];
+        }
+        
+        // Check response status
+        if (!response.ok) {
+            console.error(`GetPersonsLike failed: ${response.status} ${response.statusText}`);
+            return [];
+        }
+        
         const data = await response.json();
+        
+        // Validate data structure
+        if (!Array.isArray(data) || !data[0]) {
+            console.error('GetPersonsLike: Invalid response structure', data);
+            return [];
+        }
+        
         if (data[0].numberOfRecords >= 1) {
             return data.slice(1);
         }
@@ -56,8 +86,20 @@ export const getPersonDetails = async (personId) => {
     try {
         const url = `${MW_BASE_URL}/GetPersonDetails?personID=${personId}`;
         const response = await fetch(url);
+        
+        // Handle 401 Unauthorized (expired token)
+        if (response.status === 401) {
+            clearStoredToken();
+            notifyAuthError("Uw sessie is verlopen. Meld u alstublieft opnieuw aan.");
+            return null;
+        }
+        
+        if (!response.ok) {
+            console.error(`GetPersonDetails failed: ${response.status} ${response.statusText}`);
+            return null;
+        }
         const data = await response.json();
-        if (data[0].numberOfRecords >= 1) {
+        if (Array.isArray(data) && data[0] && data[0].numberOfRecords >= 1) {
             return data[1];
         }
         return null;
@@ -76,8 +118,20 @@ export const getFather = async (childId) => {
     try {
         const url = `${MW_BASE_URL}/GetFather?childID=${childId}`;
         const response = await fetch(url);
+        
+        // Handle 401 Unauthorized (expired token)
+        if (response.status === 401) {
+            clearStoredToken();
+            notifyAuthError("Uw sessie is verlopen. Meld u alstublieft opnieuw aan.");
+            return null;
+        }
+        
+        if (!response.ok) {
+            console.error(`GetFather failed: ${response.status} ${response.statusText}`);
+            return null;
+        }
         const data = await response.json();
-        if (data[0].numberOfRecords >= 1) {
+        if (Array.isArray(data) && data[0] && data[0].numberOfRecords >= 1) {
             return data[1].FatherId || data[1].FatherID;
         }
         return null;
@@ -96,8 +150,20 @@ export const getMother = async (childId) => {
     try {
         const url = `${MW_BASE_URL}/GetMother?childID=${childId}`;
         const response = await fetch(url);
+        
+        // Handle 401 Unauthorized (expired token)
+        if (response.status === 401) {
+            clearStoredToken();
+            notifyAuthError("Uw sessie is verlopen. Meld u alstublieft opnieuw aan.");
+            return null;
+        }
+        
+        if (!response.ok) {
+            console.error(`GetMother failed: ${response.status} ${response.statusText}`);
+            return null;
+        }
         const data = await response.json();
-        if (data[0].numberOfRecords >= 1) {
+        if (Array.isArray(data) && data[0] && data[0].numberOfRecords >= 1) {
             return data[1].MotherId || data[1].MotherID;
         }
         return null;
@@ -116,8 +182,20 @@ export const getSiblings = async (parentId) => {
     try {
         const url = `${MW_BASE_URL}/GetSiblings?parentID=${parentId}`;
         const response = await fetch(url);
+        
+        // Handle 401 Unauthorized (expired token)
+        if (response.status === 401) {
+            clearStoredToken();
+            notifyAuthError("Uw sessie is verlopen. Meld u alstublieft opnieuw aan.");
+            return [];
+        }
+        
+        if (!response.ok) {
+            console.error(`GetSiblings failed: ${response.status} ${response.statusText}`);
+            return [];
+        }
         const data = await response.json();
-        if (data[0].numberOfRecords >= 1) {
+        if (Array.isArray(data) && data[0] && data[0].numberOfRecords >= 1) {
             return data.slice(1);
         }
         return [];
@@ -136,8 +214,20 @@ export const getPartners = async (personId) => {
     try {
         const url = `${MW_BASE_URL}/GetPartners?personID=${personId}`;
         const response = await fetch(url);
+        
+        // Handle 401 Unauthorized (expired token)
+        if (response.status === 401) {
+            clearStoredToken();
+            notifyAuthError("Uw sessie is verlopen. Meld u alstublieft opnieuw aan.");
+            return [];
+        }
+        
+        if (!response.ok) {
+            console.error(`GetPartners failed: ${response.status} ${response.statusText}`);
+            return [];
+        }
         const data = await response.json();
-        if (data[0].numberOfRecords >= 1) {
+        if (Array.isArray(data) && data[0] && data[0].numberOfRecords >= 1) {
             return data.slice(1);
         }
         return [];
@@ -156,8 +246,20 @@ export const getChildren = async (personId) => {
     try {
         const url = `${MW_BASE_URL}/GetChildren?personID=${personId}`;
         const response = await fetch(url);
+        
+        // Handle 401 Unauthorized (expired token)
+        if (response.status === 401) {
+            clearStoredToken();
+            notifyAuthError("Uw sessie is verlopen. Meld u alstublieft opnieuw aan.");
+            return [];
+        }
+        
+        if (!response.ok) {
+            console.error(`GetChildren failed: ${response.status} ${response.statusText}`);
+            return [];
+        }
         const data = await response.json();
-        if (data[0].numberOfRecords >= 1) {
+        if (Array.isArray(data) && data[0] && data[0].numberOfRecords >= 1) {
             return data.slice(1);
         }
         return [];

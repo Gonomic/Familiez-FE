@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate, useNavigate } from 'react-router-dom';
+import { Alert, Snackbar } from '@mui/material';
 import TopBar from './TopBar';
 import LeftDrawer from './LeftDrawer';
 import RightDrawer from './RightDrawer';
@@ -14,33 +15,65 @@ import { getStoredToken, initiateSSOLogin } from './services/authService';
 
 const RequireAuth = ({ children }) => {
   const [hasToken, setHasToken] = useState(Boolean(getStoredToken()));
-  const [error, setError] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [showError, setShowError] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     const updateAuth = () => setHasToken(Boolean(getStoredToken()));
+    
+    // Handle auth errors (expired token, etc)
+    const handleAuthError = (event) => {
+      const message = event.detail?.message || 'Authenticatie fout. Meld u alstublieft aan.';
+      setAuthError(message);
+      setShowError(true);
+      setHasToken(false);
+      
+      // Redirect to login after showing message
+      setTimeout(() => {
+        navigate('/');
+      }, 3000);
+    };
+    
     updateAuth();
     window.addEventListener('familiez-auth-updated', updateAuth);
     window.addEventListener('storage', updateAuth);
+    window.addEventListener('familiez-auth-error', handleAuthError);
+    
     return () => {
       window.removeEventListener('familiez-auth-updated', updateAuth);
       window.removeEventListener('storage', updateAuth);
+      window.removeEventListener('familiez-auth-error', handleAuthError);
     };
-  }, []);
+  }, [navigate]);
 
   // If no token, redirect to login page
   useEffect(() => {
-    if (!hasToken) {
+    if (!hasToken && !showError) {
       navigate('/');
     }
-  }, [hasToken, navigate]);
+  }, [hasToken, navigate, showError]);
 
-  if (error) {
-    return <div>{error}</div>;
-  }
+  const handleCloseError = () => {
+    setShowError(false);
+  };
 
   if (!hasToken) {
-    return <div>Redirecting to login...</div>;
+    return (
+      <>
+        <Snackbar
+          open={showError}
+          autoHideDuration={6000}
+          onClose={handleCloseError}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert onClose={handleCloseError} severity="warning" sx={{ width: '100%' }}>
+            {authError}
+          </Alert>
+        </Snackbar>
+        <div>Redirecting to login...</div>
+      </>
+    );
   }
 
   return children;
