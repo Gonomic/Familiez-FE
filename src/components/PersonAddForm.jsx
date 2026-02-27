@@ -447,7 +447,7 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
                     onClick={handleCancelClick}
                     disabled={isSaving}
                 >
-                    Afbreken
+                    Annuleren
                 </Button>
             </Box>
         </Box>

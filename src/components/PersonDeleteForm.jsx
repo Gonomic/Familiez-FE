@@ -103,7 +103,7 @@ const PersonDeleteForm = ({ person, onDelete, onCancel }) => {
                     onClick={handleCancelClick}
                     disabled={isDeleting}
                 >
-                    Afbreken
+                    Annuleren
                 </Button>
             </Box>
         </Box>
