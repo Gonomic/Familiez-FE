@@ -112,7 +112,7 @@ export const initiateSSOLogin = async () => {
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: "openid email",
+    scope: "openid profile email",
     state,
     // Synology doesn't support PKCE, so we don't include code_challenge parameters
   });
@@ -178,3 +178,43 @@ export const notifyAuthError = (message = "Sessie verlopen. Controleer uw inlogg
 export const setAuthHeader = (token) => ({
   Authorization: `Bearer ${token}`,
 });
+
+export const decodeToken = (token) => {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      return null;
+    }
+    const decoded = JSON.parse(atob(parts[1]));
+    return decoded;
+  } catch (err) {
+    console.error('Failed to decode token:', err);
+    return null;
+  }
+};
+
+export const getUserInfo = () => {
+  const token = getStoredToken();
+  if (!token) {
+    return null;
+  }
+  const decoded = decodeToken(token);
+  if (!decoded) {
+    return null;
+  }
+  
+  // Extract username from preferred_username or sub, removing domain part if present
+  let username = decoded.preferred_username || decoded.sub || '';
+  if (username && username.includes('@')) {
+    username = username.split('@')[0];
+  }
+  
+  const userInfo = {
+    username: username,
+    given_name: decoded.given_name || '',
+    family_name: decoded.family_name || '',
+    name: decoded.name || '',
+    email: decoded.email || '',
+  };
+  return userInfo;
+};
