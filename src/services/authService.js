@@ -101,9 +101,11 @@ export const initiateSSOLogin = async () => {
   const codeVerifier = randomString(64);
   // Note: Synology SSO doesn't support PKCE, so we won't use code_challenge
   
-  // Use cookies instead of localStorage for better cross-domain redirect support
+  // Use both cookies AND sessionStorage for maximum compatibility across redirects
   setCookie(STORAGE_STATE_KEY, state, 600); // 10 minute expiry
   setCookie(STORAGE_PKCE_KEY, codeVerifier, 600);
+  sessionStorage.setItem(STORAGE_STATE_KEY, state);
+  sessionStorage.setItem(STORAGE_PKCE_KEY, codeVerifier);
 
   // Use known Synology OAuth endpoint (standard for all Synology SSO Server installations)
   const authorizeUrl = `${authBaseUrl.replace(/\/$/, "")}/webman/sso/SSOOauth.cgi`;
@@ -127,7 +129,8 @@ export const exchangeCodeForToken = async (code, state) => {
     throw new Error("Missing VITE_API_BASE env");
   }
 
-  const expectedState = getCookie(STORAGE_STATE_KEY);
+  // Try cookie first, then sessionStorage as fallback
+  const expectedState = getCookie(STORAGE_STATE_KEY) || sessionStorage.getItem(STORAGE_STATE_KEY);
 
   if (!expectedState) {
     throw new Error("Invalid OAuth state - state not found in storage");
@@ -152,9 +155,11 @@ export const exchangeCodeForToken = async (code, state) => {
     throw new Error("Token response missing access_token");
   }
 
-  // Clean up OAuth cookies
+  // Clean up OAuth cookies and sessionStorage
   deleteCookie(STORAGE_STATE_KEY);
   deleteCookie(STORAGE_PKCE_KEY);
+  sessionStorage.removeItem(STORAGE_STATE_KEY);
+  sessionStorage.removeItem(STORAGE_PKCE_KEY);
   
   // Store access token in localStorage
   localStorage.setItem(STORAGE_TOKEN_KEY, data.access_token);
