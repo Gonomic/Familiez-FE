@@ -8,20 +8,24 @@ import debounce from 'lodash/debounce';
 import PersonEditForm from './components/PersonEditForm';
 import PersonDeleteForm from './components/PersonDeleteForm';
 import PersonAddForm from './components/PersonAddForm';
+import PersonViewForm from './components/PersonViewForm';
 import { getPersonsLike } from './services/familyDataService';
+import { getUserInfo } from './services/authService';
 
-function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUpdated, personToDelete, personToAdd, onPersonAdded, onPersonDeleted, onAddPersonClick }) {
+function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUpdated, personToDelete, personToAdd, personToView, onPersonAdded, onPersonDeleted, onAddPersonClick }) {
     const navigate = useNavigate();
     const [person, setPerson] = useState(null);
     const [persons, setPersons] = useState([]);
     const [inputValue, setInputValue] = useState("");
     const isSelectingRef = useRef(false);
-    const [mode, setMode] = useState('select'); // 'select', 'edit', 'delete', 'add'
+    const [mode, setMode] = useState('select'); // 'select', 'edit', 'delete', 'add', 'view'
+    const userInfo = getUserInfo();
+    const isAdmin = userInfo?.is_admin === true;
 
     const [nbrOfParentGenerations, setNbrOfParentGenerations] = useState('1');
     const [nbrOfChildGenerations, setNbrOfChildGenerations] = useState('1');
 
-    // Update mode when personToEdit, personToDelete, or personToAdd changes
+    // Update mode when personToEdit, personToDelete, personToAdd, or personToView changes
     useEffect(() => {
         if (personToDelete) {
             setMode('delete');
@@ -29,10 +33,12 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
             setMode('edit');
         } else if (personToAdd !== undefined) {
             setMode('add');
+        } else if (personToView) {
+            setMode('view');
         } else {
             setMode('select');
         }
-    }, [personToEdit, personToDelete, personToAdd]);
+    }, [personToEdit, personToDelete, personToAdd, personToView]);
 
     // Handle atomic change of Autocomplete field
     const handleInputChange = (event, newInputValue) => {
@@ -146,6 +152,12 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
         onClose();
     };
 
+    // Handle closing view
+    const handleCloseView = () => {
+        setMode('select');
+        onClose();
+    };
+
     // Cleanup debounced function on unmount
     useEffect(() => {
         return () => {
@@ -216,15 +228,24 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
                             >
                                 Toon Stamboom
                             </Button>
-                            <Button 
-                                variant="outlined" 
-                                color="primary"
-                                onClick={handleAddPersonClick}
-                                fullWidth
-                                sx={{ mt: 2 }}
-                            >
-                                Persoon toevoegen
-                            </Button>
+                            {isAdmin && (
+                                <Button 
+                                    variant="outlined" 
+                                    color="primary"
+                                    onClick={handleAddPersonClick}
+                                    fullWidth
+                                    sx={{ mt: 2 }}
+                                >
+                                    Persoon toevoegen
+                                </Button>
+                            )}
+                            {!isAdmin && (
+                                <Box sx={{ mt: 2, p: 2, bgcolor: '#f5f5f5', borderRadius: 1, textAlign: 'center' }}>
+                                    <Typography variant="body2" color="textSecondary">
+                                        Alleen admins kunnen personen toevoegen
+                                    </Typography>
+                                </Box>
+                            )}
                         </>
                     ) : mode === 'delete' ? (
                         <>
@@ -240,6 +261,13 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
                                 parentPerson={personToAdd}
                                 onAdd={handlePersonAdded}
                                 onCancel={handleCancelAdd}
+                            />
+                        </>
+                    ) : mode === 'view' ? (
+                        <>
+                            <PersonViewForm
+                                person={personToView}
+                                onClose={handleCloseView}
                             />
                         </>
                     ) : (
@@ -265,6 +293,7 @@ RightDrawer.propTypes = {
     onPersonUpdated: PropTypes.func,
     personToDelete: PropTypes.object,
     personToAdd: PropTypes.object,
+    personToView: PropTypes.object,
     onPersonAdded: PropTypes.func,
     onPersonDeleted: PropTypes.func,
     onAddPersonClick: PropTypes.func,

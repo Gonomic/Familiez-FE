@@ -3,6 +3,9 @@ import { sha256 } from 'js-sha256';
 const STORAGE_TOKEN_KEY = "familiez_access_token";
 const STORAGE_STATE_KEY = "familiez_oauth_state";
 const STORAGE_PKCE_KEY = "familiez_pkce_verifier";
+const STORAGE_STATE_FALLBACK_KEY = "familiez_oauth_state_fallback";
+const STORAGE_PKCE_FALLBACK_KEY = "familiez_pkce_verifier_fallback";
+const STORAGE_USER_ROLE_KEY = "familiez_user_role";
 const AUTH_EVENT = "familiez-auth-updated";
 
 const notifyAuthChange = () => {
@@ -38,6 +41,7 @@ const getAuthConfig = () => {
     redirectUri: getEnv("VITE_REDIRECT_URI"),
     discoveryUrl: getEnv("VITE_SYNOLOGY_DISCOVERY_URL"),
     apiBaseUrl: getEnv("VITE_API_BASE"),
+    prompt: getEnv("VITE_SYNOLOGY_LOGIN_PROMPT") || "login",
   };
 };
 
@@ -92,10 +96,14 @@ const getDiscovery = async () => {
 };
 
 export const initiateSSOLogin = async () => {
-  const { authBaseUrl, clientId, redirectUri } = getAuthConfig();
+  const { authBaseUrl, clientId, redirectUri, prompt } = getAuthConfig();
   if (!authBaseUrl || !clientId || !redirectUri) {
     throw new Error("Missing SSO configuration in env");
   }
+
+  // Ensure a clean local auth state before starting a new login
+  localStorage.removeItem(STORAGE_TOKEN_KEY);
+  localStorage.removeItem(STORAGE_USER_ROLE_KEY);
 
   const state = randomString(24);
   const codeVerifier = randomString(64);
@@ -106,6 +114,8 @@ export const initiateSSOLogin = async () => {
   setCookie(STORAGE_PKCE_KEY, codeVerifier, 600);
   sessionStorage.setItem(STORAGE_STATE_KEY, state);
   sessionStorage.setItem(STORAGE_PKCE_KEY, codeVerifier);
+  localStorage.setItem(STORAGE_STATE_FALLBACK_KEY, state);
+  localStorage.setItem(STORAGE_PKCE_FALLBACK_KEY, codeVerifier);
 
   // Use known Synology OAuth endpoint (standard for all Synology SSO Server installations)
   const authorizeUrl = `${authBaseUrl.replace(/\/$/, "")}/webman/sso/SSOOauth.cgi`;
@@ -116,6 +126,8 @@ export const initiateSSOLogin = async () => {
     response_type: "code",
     scope: "openid profile email",
     state,
+    prompt,
+    max_age: "0",
     // Synology doesn't support PKCE, so we don't include code_challenge parameters
   });
 
@@ -130,7 +142,10 @@ export const exchangeCodeForToken = async (code, state) => {
   }
 
   // Try cookie first, then sessionStorage as fallback
-  const expectedState = getCookie(STORAGE_STATE_KEY) || sessionStorage.getItem(STORAGE_STATE_KEY);
+  const expectedState =
+    getCookie(STORAGE_STATE_KEY) ||
+    sessionStorage.getItem(STORAGE_STATE_KEY) ||
+    localStorage.getItem(STORAGE_STATE_FALLBACK_KEY);
 
   if (!expectedState) {
     throw new Error("Invalid OAuth state - state not found in storage");
@@ -160,6 +175,8 @@ export const exchangeCodeForToken = async (code, state) => {
   deleteCookie(STORAGE_PKCE_KEY);
   sessionStorage.removeItem(STORAGE_STATE_KEY);
   sessionStorage.removeItem(STORAGE_PKCE_KEY);
+  localStorage.removeItem(STORAGE_STATE_FALLBACK_KEY);
+  localStorage.removeItem(STORAGE_PKCE_FALLBACK_KEY);
   
   // Store access token in localStorage
   localStorage.setItem(STORAGE_TOKEN_KEY, data.access_token);
@@ -171,7 +188,43 @@ export const getStoredToken = () => localStorage.getItem(STORAGE_TOKEN_KEY);
 
 export const clearStoredToken = () => {
   localStorage.removeItem(STORAGE_TOKEN_KEY);
+  localStorage.removeItem(STORAGE_USER_ROLE_KEY);
+  sessionStorage.removeItem(STORAGE_STATE_KEY);
+  sessionStorage.removeItem(STORAGE_PKCE_KEY);
+  deleteCookie(STORAGE_STATE_KEY);
+  deleteCookie(STORAGE_PKCE_KEY);
+  localStorage.removeItem(STORAGE_STATE_FALLBACK_KEY);
+  localStorage.removeItem(STORAGE_PKCE_FALLBACK_KEY);
   notifyAuthChange();
+};
+
+// Logout - keep user in the same tab on Familiez login page.
+// Also clear Synology session in the background (no popup, no redirect).
+export const initiateSSOLogout = () => {
+  clearStoredToken();
+
+  const { authBaseUrl } = getAuthConfig();
+  const logoutBase = (authBaseUrl || '').replace(/\/$/, '');
+  const synologyApiLogoutUrl = `${logoutBase}/webapi/auth.cgi?api=SYNO.API.Auth&method=logout&version=7`;
+
+  try {
+    fetch(synologyApiLogoutUrl, {
+      method: 'GET',
+      mode: 'no-cors',
+      credentials: 'include',
+      cache: 'no-store',
+    }).catch(() => {
+    });
+  } catch (err) {
+  }
+
+  try {
+    const logoutImg = new Image();
+    logoutImg.src = `${synologyApiLogoutUrl}&_ts=${Date.now()}`;
+  } catch (err) {
+  }
+
+  window.location.replace('/');
 };
 
 // Dispatch auth error event when token is invalid/expired
@@ -214,12 +267,74 @@ export const getUserInfo = () => {
     username = username.split('@')[0];
   }
   
+  // Get role info from localStorage (set by fetchUserRole)
+  const roleData = localStorage.getItem(STORAGE_USER_ROLE_KEY);
+  let role = 'none';
+  let is_admin = false;
+  let is_user = false;
+  
+  if (roleData) {
+    try {
+      const parsed = JSON.parse(roleData);
+      role = parsed.role || 'none';
+      is_admin = parsed.is_admin || false;
+      is_user = parsed.is_user || false;
+    } catch (err) {
+      console.warn('Failed to parse role data:', err);
+    }
+  }
+  
   const userInfo = {
     username: username,
     given_name: decoded.given_name || '',
     family_name: decoded.family_name || '',
     name: decoded.name || '',
     email: decoded.email || '',
+    role: role,
+    is_admin: is_admin,
+    is_user: is_user,
   };
   return userInfo;
+};
+
+/**
+ * Fetch user role from /auth/me endpoint (LDAP group membership)
+ * Call this after successful login to get role information
+ */
+export const fetchUserRole = async () => {
+  const { apiBaseUrl } = getAuthConfig();
+  const token = getStoredToken();
+  
+  if (!apiBaseUrl || !token) {
+    console.warn('[authService] Cannot fetch user role: missing API base URL or token');
+    return null;
+  }
+  
+  try {
+    const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/auth/me`, {
+      method: 'GET',
+      headers: setAuthHeader(token),
+    });
+    
+    if (!response.ok) {
+      console.error(`Failed to fetch user role: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    
+    const data = await response.json();
+    // Store role data in localStorage
+    localStorage.setItem(STORAGE_USER_ROLE_KEY, JSON.stringify({
+      username: data.username,
+      role: data.role,
+      is_admin: data.is_admin,
+      is_user: data.is_user,
+      groups: data.groups || [],
+    }));
+    
+    notifyAuthChange();
+    return data;
+  } catch (error) {
+    console.error('Error fetching user role:', error);
+    return null;
+  }
 };

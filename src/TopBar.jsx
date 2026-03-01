@@ -6,7 +6,7 @@ import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import MenuIcon from '@mui/icons-material/Menu';
 import ArticleIcon from '@mui/icons-material/Article';
-import { getUserInfo } from './services/authService';
+import { fetchUserRole, getUserInfo } from './services/authService';
 
 function TopBar({ toggleLeftDrawer, toggleRightDrawer }) {
     const [userInfo, setUserInfo] = useState(null);
@@ -18,6 +18,12 @@ function TopBar({ toggleLeftDrawer, toggleRightDrawer }) {
         };
 
         updateUserInfo();
+        const initialInfo = getUserInfo();
+        if (initialInfo && !initialInfo.is_admin && !initialInfo.is_user) {
+            fetchUserRole().catch(() => {
+                // ignore, TopBar will still show username without role
+            });
+        }
         window.addEventListener('familiez-auth-updated', updateUserInfo);
 
         return () => {
@@ -25,8 +31,10 @@ function TopBar({ toggleLeftDrawer, toggleRightDrawer }) {
         };
     }, []);
 
+    const roleLabel = userInfo?.is_admin ? 'Admin' : userInfo?.is_user ? 'User' : '';
+
     const displayName = userInfo && userInfo.username
-        ? `Familiez (${userInfo.username})`
+        ? `Familiez (${userInfo.username}${roleLabel ? ' / ' + roleLabel : ''})`
         : 'Familiez';
 
     return (

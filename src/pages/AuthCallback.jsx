@@ -1,13 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { exchangeCodeForToken } from "../services/authService";
+import { exchangeCodeForToken, fetchUserRole } from "../services/authService";
 
 const AuthCallback = () => {
   const navigate = useNavigate();
   const [error, setError] = useState("");
+  const hasProcessedRef = useRef(false);
 
   useEffect(() => {
+    if (hasProcessedRef.current) {
+      return;
+    }
+    hasProcessedRef.current = true;
+
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
     const state = params.get("state");
@@ -18,7 +24,9 @@ const AuthCallback = () => {
     }
 
     exchangeCodeForToken(code, state)
-      .then(() => {
+      .then(async () => {
+        // Fetch user role from /auth/me endpoint after successful login
+        await fetchUserRole();
         navigate("/familiez-bewerken", { replace: true });
       })
       .catch((err) => {

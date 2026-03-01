@@ -87,6 +87,7 @@ const AppContent = () => {
   const [personToEdit, setPersonToEdit] = useState(null);
   const [personToDelete, setPersonToDelete] = useState(null);
   const [personToAdd, setPersonToAdd] = useState(undefined);
+  const [personToView, setPersonToView] = useState(null);
   const [nbrOfParentGenerations, setNbrOfParentGenerations] = useState(1);
   const [nbrOfChildGenerations, setNbrOfChildGenerations] = useState(1);
   const [treeRefreshTrigger, setTreeRefreshTrigger] = useState(0);
@@ -106,10 +107,11 @@ const AppContent = () => {
 
   const handleRightDrawerClose = () => {
     setRightDrawerOpen(false);
-    // Clear edit/delete/add modes when drawer closes
+    // Clear edit/delete/add/view modes when drawer closes
     setPersonToEdit(null);
     setPersonToDelete(null);
     setPersonToAdd(undefined);
+    setPersonToView(null);
   };
 
   const handlePersonSelected = (person, parentGens, childGens) => {
@@ -130,6 +132,11 @@ const AppContent = () => {
 
   const handleAddPerson = (person) => {
     setPersonToAdd(person);
+    setRightDrawerOpen(true);
+  };
+
+  const handleViewPerson = (person) => {
+    setPersonToView(person);
     setRightDrawerOpen(true);
   };
 
@@ -198,6 +205,7 @@ const AppContent = () => {
                 personToEdit={personToEdit}
                 personToDelete={personToDelete}
                 personToAdd={personToAdd}
+                personToView={personToView}
                 onPersonUpdated={handlePersonUpdated}
                 onPersonAdded={handlePersonAdded}
                 onPersonDeleted={handlePersonDeleted}
@@ -212,6 +220,7 @@ const AppContent = () => {
                 onEditPerson={handleEditPerson}
                 onDeletePerson={handleDeletePerson}
                 onAddPerson={handleAddPerson}
+                onViewPerson={handleViewPerson}
               />
               <Footer />
             </>

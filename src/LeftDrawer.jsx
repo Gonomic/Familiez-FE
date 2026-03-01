@@ -14,7 +14,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import PropTypes from 'prop-types';
 import { useEffect, useState } from 'react';
 
-import { clearStoredToken, getStoredToken } from './services/authService';
+import { initiateSSOLogout, getStoredToken } from './services/authService';
 
 const icons = [<CreateIcon key="create" />, <PermDeviceInformationIcon key="info" />, <SettingsSuggestIcon key="settings" />];
 
@@ -34,9 +34,9 @@ function LeftDrawer({ open, onClose }) {
     }, []);
 
     const handleLogout = () => {
-        clearStoredToken();
         onClose();
-        navigate('/');
+        // This will clear all local state AND redirect to Synology logout endpoint
+        initiateSSOLogout();
     };
 
     const DrawerList = (
