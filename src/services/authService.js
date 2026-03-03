@@ -14,7 +14,12 @@ const notifyAuthChange = () => {
 
 // Cookie helpers for OAuth state that persists across redirects
 const setCookie = (name, value, maxAgeSeconds = 600) => {
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
+  // Only use cookies for HTTPS (SameSite=None requires Secure flag)
+  // For HTTP (local dev), rely on localStorage fallback
+  const isHttps = window.location.protocol === 'https:';
+  if (isHttps) {
+    document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; SameSite=None; Secure`;
+  }
 };
 
 const getCookie = (name) => {
@@ -141,11 +146,15 @@ export const exchangeCodeForToken = async (code, state) => {
     throw new Error("Missing VITE_API_BASE env");
   }
 
-  // Try cookie first, then sessionStorage as fallback
-  const expectedState =
-    getCookie(STORAGE_STATE_KEY) ||
-    sessionStorage.getItem(STORAGE_STATE_KEY) ||
-    localStorage.getItem(STORAGE_STATE_FALLBACK_KEY);
+  // For HTTP (local dev), prioritize localStorage; for HTTPS, try cookies first
+  const isHttps = window.location.protocol === 'https:';
+  const expectedState = isHttps 
+    ? (getCookie(STORAGE_STATE_KEY) ||
+       sessionStorage.getItem(STORAGE_STATE_KEY) ||
+       localStorage.getItem(STORAGE_STATE_FALLBACK_KEY))
+    : (localStorage.getItem(STORAGE_STATE_FALLBACK_KEY) ||
+       sessionStorage.getItem(STORAGE_STATE_KEY) ||
+       getCookie(STORAGE_STATE_KEY));
 
   if (!expectedState) {
     throw new Error("Invalid OAuth state - state not found in storage");
