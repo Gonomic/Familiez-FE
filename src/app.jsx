@@ -88,6 +88,7 @@ const AppContent = () => {
   const [personToDelete, setPersonToDelete] = useState(null);
   const [personToAdd, setPersonToAdd] = useState(undefined);
   const [personToView, setPersonToView] = useState(null);
+  const [personForFiles, setPersonForFiles] = useState(null);
   const [nbrOfParentGenerations, setNbrOfParentGenerations] = useState(1);
   const [nbrOfChildGenerations, setNbrOfChildGenerations] = useState(1);
   const [treeRefreshTrigger, setTreeRefreshTrigger] = useState(0);
@@ -112,6 +113,7 @@ const AppContent = () => {
     setPersonToDelete(null);
     setPersonToAdd(undefined);
     setPersonToView(null);
+    setPersonForFiles(null);
   };
 
   const handlePersonSelected = (person, parentGens, childGens) => {
@@ -140,6 +142,11 @@ const AppContent = () => {
     setRightDrawerOpen(true);
   };
 
+  const handleManageFiles = (person) => {
+    setPersonForFiles(person);
+    setRightDrawerOpen(true);
+  };
+
   const handlePersonUpdated = (updatedPerson) => {
     if (updatedPerson) {
       // Update the selected person if it was edited
@@ -153,6 +160,7 @@ const AppContent = () => {
     setPersonToEdit(null);
     setPersonToAdd(undefined);
     setPersonToDelete(null);
+    setPersonForFiles(null);
     setRightDrawerOpen(false);
   };
 
@@ -174,6 +182,7 @@ const AppContent = () => {
     }
     // Clear add mode and close drawer
     setPersonToAdd(undefined);
+    setPersonForFiles(null);
     setRightDrawerOpen(false);
   };
 
@@ -184,6 +193,7 @@ const AppContent = () => {
     setPersonToDelete(null);
     setPersonToEdit(null);
     setPersonToAdd(undefined);
+    setPersonForFiles(null);
     setRightDrawerOpen(false);
   };
 
@@ -206,6 +216,7 @@ const AppContent = () => {
                 personToDelete={personToDelete}
                 personToAdd={personToAdd}
                 personToView={personToView}
+                personForFiles={personForFiles}
                 onPersonUpdated={handlePersonUpdated}
                 onPersonAdded={handlePersonAdded}
                 onPersonDeleted={handlePersonDeleted}
@@ -221,6 +232,7 @@ const AppContent = () => {
                 onDeletePerson={handleDeletePerson}
                 onAddPerson={handleAddPerson}
                 onViewPerson={handleViewPerson}
+                onManageFiles={handleManageFiles}
               />
               <Footer />
             </>

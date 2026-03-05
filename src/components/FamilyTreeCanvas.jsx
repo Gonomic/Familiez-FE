@@ -17,7 +17,8 @@ const FamilyTreeCanvas = ({
     onEditPerson,
     onDeletePerson,
     onAddPerson,
-    onViewPerson
+    onViewPerson,
+    onManageFiles
 }) => {
     const [familyData, setFamilyData] = useState(new Map()); // Map of PersonID -> person data
     const [positions, setPositions] = useState(new Map()); // Map of PersonID -> {x, y}
@@ -599,6 +600,12 @@ const FamilyTreeCanvas = ({
         }
     };
 
+    const handleManageFiles = (person) => {
+        if (onManageFiles) {
+            onManageFiles(person);
+        }
+    };
+
     /**
      * Draw connection lines
      */
@@ -758,6 +765,7 @@ const FamilyTreeCanvas = ({
                 onDeletePerson={handleDeletePerson}
                 onAddPerson={handleAddPerson}
                 onViewPerson={handleViewPerson}
+                onManageFiles={handleManageFiles}
                 person={selectedPerson}
             />
         </div>
@@ -779,6 +787,7 @@ FamilyTreeCanvas.propTypes = {
     onDeletePerson: PropTypes.func,
     onAddPerson: PropTypes.func,
     onViewPerson: PropTypes.func,
+    onManageFiles: PropTypes.func,
 };
 
 export default FamilyTreeCanvas;

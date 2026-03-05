@@ -8,7 +8,16 @@ import { getUserInfo } from '../services/authService';
  * View option shown to all users
  * Edit/Delete/Add menu items only shown to admin users
  */
-const PersonContextMenu = ({ anchorPosition, onClose, onEditPerson, onDeletePerson, onAddPerson, onViewPerson, person }) => {
+const PersonContextMenu = ({
+    anchorPosition,
+    onClose,
+    onEditPerson,
+    onDeletePerson,
+    onAddPerson,
+    onViewPerson,
+    onManageFiles,
+    person,
+}) => {
     const userInfo = getUserInfo();
     const isAdmin = userInfo?.is_admin === true;
 
@@ -40,6 +49,13 @@ const PersonContextMenu = ({ anchorPosition, onClose, onEditPerson, onDeletePers
         onClose();
     };
 
+    const handleFilesClick = () => {
+        if (onManageFiles && person) {
+            onManageFiles(person);
+        }
+        onClose();
+    };
+
     return (
         <Menu
             open={Boolean(anchorPosition)}
@@ -53,6 +69,9 @@ const PersonContextMenu = ({ anchorPosition, onClose, onEditPerson, onDeletePers
         >
             <MenuItem onClick={handleViewClick}>
                 Persoon inzien
+            </MenuItem>
+            <MenuItem onClick={handleFilesClick}>
+                Bestanden
             </MenuItem>
             {isAdmin && (
                 <>
@@ -86,6 +105,7 @@ PersonContextMenu.propTypes = {
     onDeletePerson: PropTypes.func,
     onAddPerson: PropTypes.func,
     onViewPerson: PropTypes.func,
+    onManageFiles: PropTypes.func,
     person: PropTypes.object,
 };
 

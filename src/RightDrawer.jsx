@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
-import { Autocomplete, TextField, Typography, Button, Divider } from "@mui/material";
+import { Autocomplete, TextField, Typography, Button } from "@mui/material";
 import Drawer from '@mui/material/Drawer';
 import { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
@@ -9,23 +9,24 @@ import PersonEditForm from './components/PersonEditForm';
 import PersonDeleteForm from './components/PersonDeleteForm';
 import PersonAddForm from './components/PersonAddForm';
 import PersonViewForm from './components/PersonViewForm';
+import PersonFilesForm from './components/PersonFilesForm';
 import { getPersonsLike } from './services/familyDataService';
 import { getUserInfo } from './services/authService';
 
-function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUpdated, personToDelete, personToAdd, personToView, onPersonAdded, onPersonDeleted, onAddPersonClick }) {
+function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUpdated, personToDelete, personToAdd, personToView, personForFiles, onPersonAdded, onPersonDeleted, onAddPersonClick }) {
     const navigate = useNavigate();
     const [person, setPerson] = useState(null);
     const [persons, setPersons] = useState([]);
     const [inputValue, setInputValue] = useState("");
     const isSelectingRef = useRef(false);
-    const [mode, setMode] = useState('select'); // 'select', 'edit', 'delete', 'add', 'view'
+    const [mode, setMode] = useState('select'); // 'select', 'edit', 'delete', 'add', 'view', 'files'
     const userInfo = getUserInfo();
     const isAdmin = userInfo?.is_admin === true;
 
     const [nbrOfParentGenerations, setNbrOfParentGenerations] = useState('1');
     const [nbrOfChildGenerations, setNbrOfChildGenerations] = useState('1');
 
-    // Update mode when personToEdit, personToDelete, personToAdd, or personToView changes
+    // Update mode when personToEdit, personToDelete, personToAdd, personToView, or personForFiles changes
     useEffect(() => {
         if (personToDelete) {
             setMode('delete');
@@ -35,10 +36,12 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
             setMode('add');
         } else if (personToView) {
             setMode('view');
+        } else if (personForFiles) {
+            setMode('files');
         } else {
             setMode('select');
         }
-    }, [personToEdit, personToDelete, personToAdd, personToView]);
+    }, [personToEdit, personToDelete, personToAdd, personToView, personForFiles]);
 
     // Handle atomic change of Autocomplete field
     const handleInputChange = (event, newInputValue) => {
@@ -270,6 +273,13 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
                                 onClose={handleCloseView}
                             />
                         </>
+                    ) : mode === 'files' ? (
+                        <>
+                            <PersonFilesForm
+                                person={personForFiles}
+                                onClose={onClose}
+                            />
+                        </>
                     ) : (
                         <>
                             <PersonEditForm
@@ -294,6 +304,7 @@ RightDrawer.propTypes = {
     personToDelete: PropTypes.object,
     personToAdd: PropTypes.object,
     personToView: PropTypes.object,
+    personForFiles: PropTypes.object,
     onPersonAdded: PropTypes.func,
     onPersonDeleted: PropTypes.func,
     onAddPersonClick: PropTypes.func,
