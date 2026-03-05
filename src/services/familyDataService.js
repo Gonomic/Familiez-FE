@@ -435,3 +435,101 @@ export const addPerson = async (personData) => {
         return { success: false, error: 'Toevoegen mislukt door een netwerkfout.' };
     }
 };
+
+/**
+ * Upload a file linked to a person or family scope.
+ * @param {Object} payload - Upload payload
+ * @param {File} payload.file - File to upload
+ * @param {'person'|'family'} payload.scope - Upload scope
+ * @param {string} payload.entityId - Person ID or "father_mother" family ID
+ * @param {string} payload.documentType - Document type value
+ * @param {number|string|null} payload.year - Optional year
+ * @param {Object} payload.personData - Name metadata for storage path generation
+ * @returns {Promise<Object>} Upload response
+ */
+export const uploadDocumentFile = async ({ file, scope, entityId, documentType, year, personData }) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('scope', scope);
+    formData.append('entity_id', String(entityId));
+    formData.append('document_type', documentType);
+
+    if (year !== null && year !== undefined && String(year).trim() !== '') {
+        formData.append('year', String(year));
+    }
+
+    if (personData) {
+        formData.append('person_data', JSON.stringify(personData));
+    }
+
+    const response = await fetch(`${MW_BASE_URL}/api/files/upload`, {
+        method: 'POST',
+        body: formData,
+    });
+
+    if (response.status === 401) {
+        clearStoredToken();
+        notifyAuthError('Uw sessie is verlopen. Meld u alstublieft opnieuw aan.');
+        throw new Error('Niet geauthoriseerd. Meld opnieuw aan.');
+    }
+
+    if (!response.ok) {
+        let detail = 'Upload mislukt';
+        try {
+            const errorData = await response.json();
+            detail = errorData?.detail || detail;
+        } catch (err) {
+            // Fall back to default message when body is not JSON.
+        }
+        throw new Error(detail);
+    }
+
+    return response.json();
+};
+
+/**
+ * Get files linked to a person.
+ * @param {number} personId - Person ID
+ * @returns {Promise<Array>} Person files
+ */
+export const getPersonFiles = async (personId) => {
+    const response = await fetch(`${MW_BASE_URL}/api/person/${personId}/files`);
+
+    if (response.status === 401) {
+        clearStoredToken();
+        notifyAuthError('Uw sessie is verlopen. Meld u alstublieft opnieuw aan.');
+        return [];
+    }
+
+    if (!response.ok) {
+        console.error(`getPersonFiles failed: ${response.status} ${response.statusText}`);
+        return [];
+    }
+
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+};
+
+/**
+ * Get files linked to a family couple (father + mother).
+ * @param {number} fatherId - Father person ID
+ * @param {number} motherId - Mother person ID
+ * @returns {Promise<Array>} Family files
+ */
+export const getFamilyFiles = async (fatherId, motherId) => {
+    const response = await fetch(`${MW_BASE_URL}/api/family/${fatherId}/${motherId}/files`);
+
+    if (response.status === 401) {
+        clearStoredToken();
+        notifyAuthError('Uw sessie is verlopen. Meld u alstublieft opnieuw aan.');
+        return [];
+    }
+
+    if (!response.ok) {
+        console.error(`getFamilyFiles failed: ${response.status} ${response.statusText}`);
+        return [];
+    }
+
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+};
