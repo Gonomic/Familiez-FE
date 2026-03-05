@@ -34,6 +34,17 @@ const fetch = fetchWithAuth;
 export const getMwBaseUrl = () => MW_BASE_URL;
 export const fetchWithAuthHeaders = fetchWithAuth;
 
+export const buildFileAccessUrl = (path) => {
+    const token = getStoredToken();
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    if (!token) {
+        return `${MW_BASE_URL}${normalizedPath}`;
+    }
+
+    const separator = normalizedPath.includes('?') ? '&' : '?';
+    return `${MW_BASE_URL}${normalizedPath}${separator}token=${encodeURIComponent(token)}`;
+};
+
 /**
  * Get persons with names similar to the search string
  * @param {string} searchString - The string to search for
@@ -448,6 +459,15 @@ export const addPerson = async (personData) => {
  * @returns {Promise<Object>} Upload response
  */
 export const uploadDocumentFile = async ({ file, scope, entityId, documentType, year, personData }) => {
+    console.log('[DEBUG] File upload:', {
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        scope,
+        entityId,
+        documentType
+    });
+    
     const formData = new FormData();
     formData.append('file', file);
     formData.append('scope', scope);
@@ -532,4 +552,25 @@ export const getFamilyFiles = async (fatherId, motherId) => {
 
     const data = await response.json();
     return Array.isArray(data) ? data : [];
+};
+
+/**
+ * Download file bytes for preview using Authorization header.
+ * @param {number} fileId - File ID
+ * @returns {Promise<Blob>} File content blob
+ */
+export const getFileBlob = async (fileId) => {
+    const response = await fetch(`${MW_BASE_URL}/api/files/${fileId}`);
+
+    if (response.status === 401) {
+        clearStoredToken();
+        notifyAuthError('Uw sessie is verlopen. Meld u alstublieft opnieuw aan.');
+        throw new Error('Niet geauthoriseerd. Meld opnieuw aan.');
+    }
+
+    if (!response.ok) {
+        throw new Error(`Bestand ophalen mislukt (${response.status}).`);
+    }
+
+    return response.blob();
 };

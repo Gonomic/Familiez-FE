@@ -146,6 +146,8 @@ export const exchangeCodeForToken = async (code, state) => {
     throw new Error("Missing VITE_API_BASE env");
   }
 
+  console.log("[authService] exchangeCodeForToken called with:", { code: code ? "***" : "MISSING", state: state ? "***" : "MISSING", apiBaseUrl });
+
   // For HTTP (local dev), prioritize localStorage; for HTTPS, try cookies first
   const isHttps = window.location.protocol === 'https:';
   const expectedState = isHttps 
@@ -156,6 +158,8 @@ export const exchangeCodeForToken = async (code, state) => {
        sessionStorage.getItem(STORAGE_STATE_KEY) ||
        getCookie(STORAGE_STATE_KEY));
 
+  console.log("[authService] State validation:", { expectedState: expectedState ? "found" : "MISSING", stateMatch: state === expectedState });
+
   if (!expectedState) {
     throw new Error("Invalid OAuth state - state not found in storage");
   }
@@ -163,21 +167,31 @@ export const exchangeCodeForToken = async (code, state) => {
   if (state !== expectedState) {
     throw new Error("Invalid OAuth state - state mismatch");
   }
+
+  console.log("[authService] Sending token exchange request to:", `${apiBaseUrl.replace(/\/$/, "")}/auth/callback`);
   const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/auth/callback`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code }),
   });
 
+  console.log("[authService] Token exchange response status:", response.status, response.statusText);
+
   if (!response.ok) {
-    throw new Error("Token exchange failed");
+    const errorData = await response.json().catch(() => ({}));
+    console.error("[authService] Token exchange failed:", errorData);
+    throw new Error(`Token exchange failed: ${errorData.detail || response.statusText}`);
   }
 
   const data = await response.json();
   
   if (!data.access_token) {
+    console.error("[authService] Token response missing access_token:", data);
     throw new Error("Token response missing access_token");
   }
+
+  console.log("[authService] Token exchange successful, storing token");
+
 
   // Clean up OAuth cookies and sessionStorage
   deleteCookie(STORAGE_STATE_KEY);

@@ -1,4 +1,4 @@
-import { Menu, MenuItem } from '@mui/material';
+import { Menu, MenuItem, Divider } from '@mui/material';
 import PropTypes from 'prop-types';
 import { getUserInfo } from '../services/authService';
 
@@ -70,9 +70,6 @@ const PersonContextMenu = ({
             <MenuItem onClick={handleViewClick}>
                 Persoon inzien
             </MenuItem>
-            <MenuItem onClick={handleFilesClick}>
-                Bestanden
-            </MenuItem>
             {isAdmin && (
                 <>
                     <MenuItem onClick={handleEditClick}>
@@ -91,6 +88,10 @@ const PersonContextMenu = ({
                     (Geen edit-rechten)
                 </MenuItem>
             )}
+            <Divider />
+            <MenuItem onClick={handleFilesClick}>
+                Bestanden
+            </MenuItem>
         </Menu>
     );
 };

@@ -18,20 +18,27 @@ const AuthCallback = () => {
     const code = params.get("code");
     const state = params.get("state");
 
+    console.log("[AuthCallback] OAuth callback received:", { code: code ? "***" : "MISSING", state: state ? "***" : "MISSING" });
+
     if (!code || !state) {
-      setError("Missing authorization data. Please try logging in again.");
+      const msg = "Missing authorization data. Please try logging in again.";
+      console.error("[AuthCallback]", msg, { code, state });
+      setError(msg);
       return;
     }
 
+    console.log("[AuthCallback] Starting token exchange...");
     exchangeCodeForToken(code, state)
       .then(async () => {
+        console.log("[AuthCallback] Token exchange successful, fetching user role...");
         // Fetch user role from /auth/me endpoint after successful login
         await fetchUserRole();
+        console.log("[AuthCallback] User role fetched, navigating to /familiez-bewerken");
         navigate("/familiez-bewerken", { replace: true });
       })
       .catch((err) => {
-        console.error("Authentication error:", err);
-        setError("Authentication failed. Please try again.");
+        console.error("[AuthCallback] Authentication error:", err);
+        setError(`Authentication failed: ${err.message}`);
       });
   }, [navigate]);
 

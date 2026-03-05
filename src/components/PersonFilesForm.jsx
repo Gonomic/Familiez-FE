@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     Alert,
     Box,
@@ -21,10 +21,11 @@ import {
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
 import PropTypes from 'prop-types';
 import {
+    buildFileAccessUrl,
+    getFileBlob,
     getFamilyFiles,
     getFather,
     getMother,
-    getMwBaseUrl,
     getPersonDetails,
     getPersonFiles,
     uploadDocumentFile,
@@ -42,6 +43,23 @@ const DOCUMENT_TYPES = [
 ];
 
 const PREVIEW_OPTIONS = 'width=900,height=700,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes';
+
+const EXTENSION_TO_MIME = {
+    md: 'text/markdown',
+    txt: 'text/plain',
+    pdf: 'application/pdf',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+};
+
+const getMimeFromFilename = (name) => {
+    if (!name || !name.includes('.')) return '';
+    const ext = name.split('.').pop()?.toLowerCase() || '';
+    return EXTENSION_TO_MIME[ext] || '';
+};
 
 const formatDateTime = (value) => {
     if (!value) return '';
@@ -66,7 +84,24 @@ const formatBytes = (value) => {
     return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 };
 
-const DocumentGrid = ({ title, files, thumbnailBaseUrl, onOpenFile, brokenThumbs, onThumbError, emptyMessage }) => (
+const DocumentGrid = ({ title, files, onOpenFile, brokenThumbs, onThumbError, emptyMessage }) => {
+    const handleCardClick = (file) => {
+        // Open popup SYNCHRONOUSLY in user action context
+        // before any async operations (critical for browser popup policy)
+        const popup = window.open('', 'familiezPreview', PREVIEW_OPTIONS);
+        if (!popup) {
+            alert('Popup geblokkeerd door browser - zet popups alstublieft toe voor deze site');
+            return;
+        }
+
+        // Handle async blob fetch & display
+        onOpenFile(file, popup).catch((err) => {
+            console.error('Failed to open file:', err);
+            setError(err.message || 'Bestand openen is mislukt.');
+        });
+    };
+
+    return (
     <Box sx={{ mt: 2 }}>
         <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 700 }}>
             {title}
@@ -79,13 +114,13 @@ const DocumentGrid = ({ title, files, thumbnailBaseUrl, onOpenFile, brokenThumbs
         ) : (
             <Grid container spacing={1.5}>
                 {files.map((file) => {
-                    const thumbUrl = `${thumbnailBaseUrl}/api/files/${file.file_id}/thumbnail`;
+                    const thumbUrl = buildFileAccessUrl(`/api/files/${file.file_id}/thumbnail`);
                     const thumbBroken = brokenThumbs.has(file.file_id);
 
                     return (
                         <Grid item xs={12} sm={6} key={file.file_id}>
                             <Card variant="outlined">
-                                <CardActionArea onClick={() => onOpenFile(file.file_id)}>
+                                <CardActionArea onClick={() => handleCardClick(file)}>
                                     <Box
                                         sx={{
                                             height: 120,
@@ -131,7 +166,8 @@ const DocumentGrid = ({ title, files, thumbnailBaseUrl, onOpenFile, brokenThumbs
             </Grid>
         )}
     </Box>
-);
+    );
+};
 
 DocumentGrid.propTypes = {
     title: PropTypes.string.isRequired,
@@ -144,7 +180,6 @@ DocumentGrid.propTypes = {
         file_size: PropTypes.number,
         created_at: PropTypes.string,
     })).isRequired,
-    thumbnailBaseUrl: PropTypes.string.isRequired,
     onOpenFile: PropTypes.func.isRequired,
     brokenThumbs: PropTypes.instanceOf(Set).isRequired,
     onThumbError: PropTypes.func.isRequired,
@@ -166,8 +201,6 @@ const PersonFilesForm = ({ person, onClose }) => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [brokenThumbs, setBrokenThumbs] = useState(new Set());
-
-    const mwBaseUrl = useMemo(() => getMwBaseUrl(), []);
 
     const loadFiles = useCallback(async () => {
         if (!person?.PersonID) {
@@ -279,8 +312,89 @@ const PersonFilesForm = ({ person, onClose }) => {
         }
     };
 
-    const handleOpenFile = (fileId) => {
-        window.open(`${mwBaseUrl}/api/files/${fileId}`, 'familiezPreview', PREVIEW_OPTIONS);
+    const handleOpenFile = async (file, popup) => {
+        try {
+            const blob = await getFileBlob(file.file_id);
+            const fallbackMime = getMimeFromFilename(file.original_filename || file.filename);
+
+            // If MW couldn't determine MIME (octet-stream) and we have no extension fallback,
+            // force text/plain so browser renders inline instead of downloading.
+            let resolvedBlob = blob;
+            if (!blob.type || blob.type === 'application/octet-stream') {
+                const targetMime = fallbackMime || 'text/plain';
+                resolvedBlob = new Blob([blob], { type: targetMime });
+            }
+
+            const blobUrl = URL.createObjectURL(resolvedBlob);
+
+            // Write HTML wrapper with close button to popup
+            popup.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>${file.original_filename || file.filename}</title>
+                    <style>
+                        html, body { 
+                            margin: 0; 
+                            padding: 0; 
+                            height: 100%; 
+                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                        }
+                        #toolbar { 
+                            padding: 12px 15px; 
+                            border-bottom: 1px solid #ddd;
+                            background-color: #f5f5f5;
+                            display: flex;
+                            gap: 10px;
+                            align-items: center;
+                        }
+                        #toolbar button {
+                            padding: 6px 16px;
+                            background-color: #2196F3;
+                            color: white;
+                            border: none;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 14px;
+                            font-weight: 500;
+                        }
+                        #toolbar button:hover {
+                            background-color: #1976D2;
+                        }
+                        #content { 
+                            height: calc(100% - 56px); 
+                            overflow: auto;
+                        }
+                        #content iframe {
+                            border: none;
+                            width: 100%;
+                            height: 100%;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div id="toolbar">
+                        <button onclick="window.close()">Sluiten</button>
+                        <span style="flex: 1; color: #666; font-size: 13px;">${file.original_filename || file.filename}</span>
+                    </div>
+                    <div id="content">
+                        <iframe src="${blobUrl}"></iframe>
+                    </div>
+                </body>
+                </html>
+            `);
+            popup.document.close();
+
+            // Revoke later to avoid leaking object URLs while keeping preview usable.
+            window.setTimeout(() => {
+                URL.revokeObjectURL(blobUrl);
+            }, 60_000);
+        } catch (err) {
+            console.error('Open file failed:', err);
+            popup.document.write('<p style="color:red"><strong>Fout:</strong> ' + err.message + '</p>');
+            setError(err.message || 'Bestand openen is mislukt.');
+        }
     };
 
     const handleThumbError = (fileId) => {
@@ -390,7 +504,6 @@ const PersonFilesForm = ({ person, onClose }) => {
                     <DocumentGrid
                         title="Persoonlijke documenten"
                         files={personFiles}
-                        thumbnailBaseUrl={mwBaseUrl}
                         onOpenFile={handleOpenFile}
                         brokenThumbs={brokenThumbs}
                         onThumbError={handleThumbError}
@@ -400,7 +513,6 @@ const PersonFilesForm = ({ person, onClose }) => {
                     <DocumentGrid
                         title="Familiedocumenten"
                         files={familyFiles}
-                        thumbnailBaseUrl={mwBaseUrl}
                         onOpenFile={handleOpenFile}
                         brokenThumbs={brokenThumbs}
                         onThumbError={handleThumbError}
