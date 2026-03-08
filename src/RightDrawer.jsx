@@ -91,7 +91,7 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
             const personToPass = person ? {
                 ...person,
                 PersonIsMale: Boolean(person.PersonIsMale)
-            } : undefined;
+            } : null;
             onAddPersonClick(personToPass);
         }
     };

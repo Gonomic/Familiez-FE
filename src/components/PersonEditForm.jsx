@@ -1,7 +1,41 @@
 import { useState, useEffect } from 'react';
-import { Box, TextField, Button, Typography } from '@mui/material';
+import { Box, TextField, Button, Typography, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, MenuItem } from '@mui/material';
 import PropTypes from 'prop-types';
-import { updatePerson } from '../services/familyDataService';
+import { updatePerson, getPossibleMothersBasedOnAge, getPossibleFathersBasedOnAge, getPossiblePartnersBasedOnAge, getFather, getMother, getPartners, getChildren } from '../services/familyDataService';
+
+/**
+ * Normalize input text by replacing special characters with standard equivalents
+ * @param {string} text - Input text to normalize
+ * @returns {string} Normalized text
+ */
+const normalizeInput = (text) => {
+    if (!text) return text;
+    
+    return text
+        // Different apostrophe types to standard apostrophe
+        .replace(/[''`´]/g, "'")
+        // Common accents to base characters (for place names)
+        .replace(/[éèêë]/g, 'e')
+        .replace(/[áàâä]/g, 'a')
+        .replace(/[íìîï]/g, 'i')
+        .replace(/[óòôö]/g, 'o')
+        .replace(/[úùûü]/g, 'u')
+        .replace(/ñ/g, 'n')
+        .replace(/ç/g, 'c')
+        .replace(/[ś]/g, 's');
+};
+
+/**
+ * Validate if text contains invalid characters for Latin1 charset
+ * @param {string} text - Text to validate
+ * @returns {boolean} True if text contains invalid characters
+ */
+const hasInvalidChars = (text) => {
+    if (!text) return false;
+    // Latin1 charset accepts: a-z, A-Z, 0-9, space, apostrophe, hyphen, period, comma, parentheses
+    const validPattern = /^[a-zA-Z0-9\s'\-.,()]+$/;
+    return !validPattern.test(text);
+};
 
 /**
  * PersonEditForm Component
@@ -15,10 +49,21 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
         PersonDateOfDeath: '',
         PersonPlaceOfBirth: '',
         PersonPlaceOfDeath: '',
+        FatherId: null,
+        MotherId: null,
+        PartnerId: null,
+        PersonIsMale: '',
     });
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState(null);
+    const [possibleMothers, setPossibleMothers] = useState([]);
+    const [isLoadingMothers, setIsLoadingMothers] = useState(false);
+    const [possibleFathers, setPossibleFathers] = useState([]);
+    const [isLoadingFathers, setIsLoadingFathers] = useState(false);
+    const [possiblePartners, setPossiblePartners] = useState([]);
+    const [isLoadingPartners, setIsLoadingPartners] = useState(false);
 
+    // Load person data and current relations
     useEffect(() => {
         if (person) {
             setFormData({
@@ -28,27 +73,210 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 PersonDateOfDeath: person.PersonDateOfDeath || '',
                 PersonPlaceOfBirth: person.PersonPlaceOfBirth || '',
                 PersonPlaceOfDeath: person.PersonPlaceOfDeath || '',
+                FatherId: null,
+                MotherId: null,
+                PartnerId: null,
+                PersonIsMale: person.PersonIsMale === null || person.PersonIsMale === undefined ? '' : String(person.PersonIsMale),
             });
+
+            // Load current relations
+            const loadRelations = async () => {
+                try {
+                    const [fatherId, motherId, partners] = await Promise.all([
+                        getFather(person.PersonID),
+                        getMother(person.PersonID),
+                        getPartners(person.PersonID)
+                    ]);
+
+                    setFormData(prev => ({
+                        ...prev,
+                        FatherId: fatherId || null,
+                        MotherId: motherId || null,
+                        PartnerId: partners && partners.length > 0 ? partners[0].PersonID : null
+                    }));
+                } catch (err) {
+                    console.error('Error loading relations:', err);
+                }
+            };
+
+            loadRelations();
         }
     }, [person]);
 
+    // Fetch possible mothers based on birth date
+    useEffect(() => {
+        if (!formData.PersonDateOfBirth) {
+            setPossibleMothers([]);
+            return;
+        }
+
+        let isCancelled = false;
+        const fetchPossibleMothers = async () => {
+            setIsLoadingMothers(true);
+            try {
+                const mothers = await getPossibleMothersBasedOnAge(formData.PersonDateOfBirth);
+                if (!isCancelled) {
+                    setPossibleMothers(mothers);
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoadingMothers(false);
+                }
+            }
+        };
+
+        fetchPossibleMothers();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [formData.PersonDateOfBirth]);
+
+    // Fetch possible fathers based on birth date
+    useEffect(() => {
+        if (!formData.PersonDateOfBirth) {
+            setPossibleFathers([]);
+            return;
+        }
+
+        let isCancelled = false;
+        const fetchPossibleFathers = async () => {
+            setIsLoadingFathers(true);
+            try {
+                const fathers = await getPossibleFathersBasedOnAge(formData.PersonDateOfBirth);
+                if (!isCancelled) {
+                    setPossibleFathers(fathers);
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoadingFathers(false);
+                }
+            }
+        };
+
+        fetchPossibleFathers();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [formData.PersonDateOfBirth]);
+
+    // Fetch possible partners based on birth date
+    useEffect(() => {
+        if (!formData.PersonDateOfBirth) {
+            setPossiblePartners([]);
+            return;
+        }
+
+        let isCancelled = false;
+        const fetchPossiblePartners = async () => {
+            setIsLoadingPartners(true);
+            try {
+                const parentIds = [formData.FatherId, formData.MotherId].filter(Boolean);
+                const childrenByParent = await Promise.all(
+                    parentIds.map(parentId => getChildren(parentId))
+                );
+                const siblingIds = new Set(
+                    childrenByParent.flat().map(child => child.PersonID)
+                );
+                parentIds.forEach(parentId => siblingIds.add(parentId));
+
+                const partners = await getPossiblePartnersBasedOnAge(formData.PersonDateOfBirth);
+                const birthYear = new Date(formData.PersonDateOfBirth).getFullYear();
+
+                const filteredPartners = partners.filter(partner => {
+                    const partnerId = partner.PossiblePartnerID || partner.PersonID;
+                    if (!partnerId || siblingIds.has(partnerId) || partnerId === person?.PersonID) return false;
+
+                    const rawDate = partner.SortDate || partner.PersonDateOfBirth || '';
+                    const normalizedDate = typeof rawDate === 'string'
+                        ? rawDate.replace(/[()]/g, '')
+                        : rawDate;
+                    const partnerYear = normalizedDate ? new Date(normalizedDate).getFullYear() : NaN;
+                    if (!Number.isFinite(partnerYear)) return false;
+
+                    return Math.abs(partnerYear - birthYear) <= 60;
+                });
+
+                if (!isCancelled) {
+                    setPossiblePartners(filteredPartners);
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoadingPartners(false);
+                }
+            }
+        };
+
+        fetchPossiblePartners();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [formData.PersonDateOfBirth, formData.FatherId, formData.MotherId, person]);
+
     const handleChange = (field) => (event) => {
+        let value = event.target.value;
+        
+        // Auto-normalize text fields (not dates)
+        if (field === 'PersonGivvenName' || field === 'PersonFamilyName' || 
+            field === 'PersonPlaceOfBirth' || field === 'PersonPlaceOfDeath') {
+            value = normalizeInput(value);
+        }
+        
         setFormData(prev => ({
             ...prev,
-            [field]: event.target.value
+            [field]: value
         }));
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        // Validate for invalid characters
+        if (hasInvalidChars(formData.PersonGivvenName)) {
+            setError('Voornaam bevat ongeldige tekens. Gebruik alleen letters, cijfers en standaard leestekens.');
+            return;
+        }
+        
+        if (hasInvalidChars(formData.PersonFamilyName)) {
+            setError('Achternaam bevat ongeldige tekens. Gebruik alleen letters, cijfers en standaard leestekens.');
+            return;
+        }
+        
+        if (hasInvalidChars(formData.PersonPlaceOfBirth)) {
+            setError('Geboorteplaats bevat ongeldige tekens. Gebruik alleen letters, cijfers en standaard leestekens.');
+            return;
+        }
+        
+        if (formData.PersonPlaceOfDeath && hasInvalidChars(formData.PersonPlaceOfDeath)) {
+            setError('Plaats van overlijden bevat ongeldige tekens. Gebruik alleen letters, cijfers en standaard leestekens.');
+            return;
+        }
+        
         setIsSaving(true);
         setError(null);
 
         try {
-            const success = await updatePerson(person.PersonID, formData);
+            // Prepare data with all fields including relations and gender
+            const personIsMaleValue = formData.PersonIsMale === '' ? null : Number(formData.PersonIsMale);
+            const updateData = {
+                PersonGivvenName: formData.PersonGivvenName,
+                PersonFamilyName: formData.PersonFamilyName,
+                PersonDateOfBirth: formData.PersonDateOfBirth || null,
+                PersonPlaceOfBirth: formData.PersonPlaceOfBirth || null,
+                PersonDateOfDeath: formData.PersonDateOfDeath || null,
+                PersonPlaceOfDeath: formData.PersonPlaceOfDeath || null,
+                PersonIsMale: personIsMaleValue,
+                FatherId: formData.FatherId || null,
+                MotherId: formData.MotherId || null,
+                PartnerId: formData.PartnerId || null,
+            };
+
+            const success = await updatePerson(person.PersonID, updateData);
             if (success) {
                 if (onSave) {
-                    onSave({ ...person, ...formData });
+                    onSave({ ...person, ...updateData });
                 }
             } else {
                 setError('Opslaan mislukt. Probeer het opnieuw.');
@@ -142,6 +370,88 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 onChange={handleChange('PersonPlaceOfDeath')}
                 fullWidth
             />
+
+            <FormControl component="fieldset" disabled={isSaving}>
+                <FormLabel component="legend">Geslacht</FormLabel>
+                <RadioGroup
+                    row
+                    value={formData.PersonIsMale}
+                    onChange={handleChange('PersonIsMale')}
+                >
+                    <FormControlLabel value="" control={<Radio />} label="Onbekend" />
+                    <FormControlLabel value="1" control={<Radio />} label="Man" />
+                    <FormControlLabel value="0" control={<Radio />} label="Vrouw" />
+                </RadioGroup>
+            </FormControl>
+
+            <TextField
+                label="Vader"
+                value={formData.FatherId || ''}
+                onChange={handleChange('FatherId')}
+                select
+                fullWidth
+                disabled={isSaving || isLoadingFathers || !formData.PersonDateOfBirth}
+                helperText={
+                    formData.PersonDateOfBirth
+                        ? 'Kies een vader (15-50 jaar ouder)'
+                        : 'Vul eerst de geboortedatum in'
+                }
+            >
+                <MenuItem value="">
+                    Geen selectie
+                </MenuItem>
+                {possibleFathers.map((father) => (
+                    <MenuItem key={father.PossibleFatherID || father.PersonID} value={father.PossibleFatherID || father.PersonID}>
+                        {father.PossibleFather || `${father.PersonGivvenName || ''} ${father.PersonFamilyName || ''}`.trim()}
+                    </MenuItem>
+                ))}
+            </TextField>
+
+            <TextField
+                label="Moeder"
+                value={formData.MotherId || ''}
+                onChange={handleChange('MotherId')}
+                select
+                fullWidth
+                disabled={isSaving || isLoadingMothers || !formData.PersonDateOfBirth}
+                helperText={
+                    formData.PersonDateOfBirth
+                        ? 'Kies een moeder (15-50 jaar ouder)'
+                        : 'Vul eerst de geboortedatum in'
+                }
+            >
+                <MenuItem value="">
+                    Geen selectie
+                </MenuItem>
+                {possibleMothers.map((mother) => (
+                    <MenuItem key={mother.PossibleMotherID || mother.PersonID} value={mother.PossibleMotherID || mother.PersonID}>
+                        {mother.PossibleMother || `${mother.PersonGivvenName || ''} ${mother.PersonFamilyName || ''}`.trim()}
+                    </MenuItem>
+                ))}
+            </TextField>
+
+            <TextField
+                label="Partner"
+                value={formData.PartnerId || ''}
+                onChange={handleChange('PartnerId')}
+                select
+                fullWidth
+                disabled={isSaving || isLoadingPartners || !formData.PersonDateOfBirth}
+                helperText={
+                    formData.PersonDateOfBirth
+                        ? 'Kies een partner (max 60 jaar leeftijdsverschil)'
+                        : 'Vul eerst de geboortedatum in'
+                }
+            >
+                <MenuItem value="">
+                    Geen selectie
+                </MenuItem>
+                {possiblePartners.map((partner) => (
+                    <MenuItem key={partner.PossiblePartnerID || partner.PersonID} value={partner.PossiblePartnerID || partner.PersonID}>
+                        {partner.PossiblePartner || `${partner.PersonGivvenName || ''} ${partner.PersonFamilyName || ''}`.trim()}
+                    </MenuItem>
+                ))}
+            </TextField>
 
             <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
                 <Button

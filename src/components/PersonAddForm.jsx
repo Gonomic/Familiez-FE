@@ -4,6 +4,40 @@ import PropTypes from 'prop-types';
 import { addPerson, getPossibleMothersBasedOnAge, getPossibleFathersBasedOnAge, getPossiblePartnersBasedOnAge, getChildren } from '../services/familyDataService';
 
 /**
+ * Normalize input text by replacing special characters with standard equivalents
+ * @param {string} text - Input text to normalize
+ * @returns {string} Normalized text
+ */
+const normalizeInput = (text) => {
+    if (!text) return text;
+    
+    return text
+        // Different apostrophe types to standard apostrophe
+        .replace(/[''`´]/g, "'")
+        // Common accents to base characters (for place names)
+        .replace(/[éèêë]/g, 'e')
+        .replace(/[áàâä]/g, 'a')
+        .replace(/[íìîï]/g, 'i')
+        .replace(/[óòôö]/g, 'o')
+        .replace(/[úùûü]/g, 'u')
+        .replace(/ñ/g, 'n')
+        .replace(/ç/g, 'c')
+        .replace(/[ś]/g, 's');
+};
+
+/**
+ * Validate if text contains invalid characters for Latin1 charset
+ * @param {string} text - Text to validate
+ * @returns {boolean} True if text contains invalid characters
+ */
+const hasInvalidChars = (text) => {
+    if (!text) return false;
+    // Latin1 charset accepts: a-z, A-Z, 0-9, space, apostrophe, hyphen, period, comma, parentheses
+    const validPattern = /^[a-zA-Z0-9\s'\-.,()]+$/;
+    return !validPattern.test(text);
+};
+
+/**
  * PersonAddForm Component
  * Form for adding a new person, with parent(s) pre-filled
  */
@@ -164,9 +198,17 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
     }, [parentPerson, formData.PersonDateOfBirth]);
 
     const handleChange = (field) => (event) => {
+        let value = event.target.value;
+        
+        // Auto-normalize text fields (not dates)
+        if (field === 'PersonGivvenName' || field === 'PersonFamilyName' || 
+            field === 'PersonPlaceOfBirth' || field === 'PersonPlaceOfDeath') {
+            value = normalizeInput(value);
+        }
+        
         setFormData(prev => ({
             ...prev,
-            [field]: event.target.value
+            [field]: value
         }));
     };
 
@@ -192,7 +234,27 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
             setError('Geboorteplaats is verplicht.');
             return;
         }
-
+        
+        // Validate for invalid characters (extra safety check)
+        if (hasInvalidChars(formData.PersonGivvenName)) {
+            setError('Voornaam bevat ongeldige tekens. Gebruik alleen letters, cijfers en standaard leestekens.');
+            return;
+        }
+        
+        if (hasInvalidChars(formData.PersonFamilyName)) {
+            setError('Achternaam bevat ongeldige tekens. Gebruik alleen letters, cijfers en standaard leestekens.');
+            return;
+        }
+        
+        if (hasInvalidChars(formData.PersonPlaceOfBirth)) {
+            setError('Geboorteplaats bevat ongeldige tekens. Gebruik alleen letters, cijfers en standaard leestekens.');
+            return;
+        }
+        
+        if (formData.PersonPlaceOfDeath && hasInvalidChars(formData.PersonPlaceOfDeath)) {
+            setError('Plaats van overlijden bevat ongeldige tekens. Gebruik alleen letters, cijfers en standaard leestekens.');
+            return;
+        }
 
         setIsSaving(true);
         setError(null);
@@ -395,7 +457,7 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
             ) : (
                 <>
                     <TextField
-                        label="Vader ID"
+                        label="Vader"
                         value={formData.FatherId || ''}
                         type="number"
                         fullWidth
@@ -403,7 +465,7 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
                         helperText="Automatisch ingesteld"
                     />
                     <TextField
-                        label="Moeder ID"
+                        label="Moeder"
                         value={formData.MotherId || ''}
                         type="number"
                         fullWidth
