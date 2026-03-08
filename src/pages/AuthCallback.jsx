@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { exchangeCodeForToken, fetchUserRole } from "../services/authService";
+import { exchangeCodeForToken, fetchUserRole, startSessionKeepalive } from "../services/authService";
 
 const AuthCallback = () => {
   const navigate = useNavigate();
@@ -33,7 +33,10 @@ const AuthCallback = () => {
         console.log("[AuthCallback] Token exchange successful, fetching user role...");
         // Fetch user role from /auth/me endpoint after successful login
         await fetchUserRole();
-        console.log("[AuthCallback] User role fetched, navigating to /familiez-bewerken");
+        console.log("[AuthCallback] User role fetched, starting session keepalive...");
+        // Start periodic session keepalive (NEW FEATURE for server-side sessions)
+        startSessionKeepalive();
+        console.log("[AuthCallback] Session keepalive started, navigating to /familiez-bewerken");
         navigate("/familiez-bewerken", { replace: true });
       })
       .catch((err) => {

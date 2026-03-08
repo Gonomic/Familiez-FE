@@ -25,7 +25,12 @@ const fetchWithAuth = (url, options = {}) => {
     };
     const hasAuthHeader = 'Authorization' in headers;
     console.debug('[familyDataService] Request to:', url, 'Has Auth:', hasAuthHeader);
-    return window.fetch(url, { ...options, headers });
+    return window.fetch(url, {
+        ...options,
+        headers,
+        // Required for cross-origin cookie auth fallback (server-side session).
+        credentials: options.credentials ?? 'include',
+    });
 };
 
 // Use a local fetch wrapper that injects Authorization headers.

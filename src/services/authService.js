@@ -50,6 +50,14 @@ const getAuthConfig = () => {
   };
 };
 
+const resolveRedirectUri = (rawRedirectUri) => {
+  try {
+    return new URL(rawRedirectUri, window.location.origin);
+  } catch (err) {
+    throw new Error("Invalid VITE_REDIRECT_URI configuration");
+  }
+};
+
 const randomString = (length = 32) => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   let result = "";
@@ -106,6 +114,13 @@ export const initiateSSOLogin = async () => {
     throw new Error("Missing SSO configuration in env");
   }
 
+  const resolvedRedirectUri = resolveRedirectUri(redirectUri);
+  if (resolvedRedirectUri.origin !== window.location.origin) {
+    throw new Error(
+      `OAuth redirect origin mismatch: app is running on ${window.location.origin} but VITE_REDIRECT_URI uses ${resolvedRedirectUri.origin}`
+    );
+  }
+
   // Ensure a clean local auth state before starting a new login
   localStorage.removeItem(STORAGE_TOKEN_KEY);
   localStorage.removeItem(STORAGE_USER_ROLE_KEY);
@@ -127,7 +142,7 @@ export const initiateSSOLogin = async () => {
 
   const params = new URLSearchParams({
     client_id: clientId,
-    redirect_uri: redirectUri,
+    redirect_uri: resolvedRedirectUri.toString(),
     response_type: "code",
     scope: "openid profile email",
     state,
@@ -141,7 +156,7 @@ export const initiateSSOLogin = async () => {
 };
 
 export const exchangeCodeForToken = async (code, state) => {
-  const { apiBaseUrl } = getAuthConfig();
+  const { apiBaseUrl, redirectUri } = getAuthConfig();
   if (!apiBaseUrl) {
     throw new Error("Missing VITE_API_BASE env");
   }
@@ -161,7 +176,10 @@ export const exchangeCodeForToken = async (code, state) => {
   console.log("[authService] State validation:", { expectedState: expectedState ? "found" : "MISSING", stateMatch: state === expectedState });
 
   if (!expectedState) {
-    throw new Error("Invalid OAuth state - state not found in storage");
+    const configuredOrigin = resolveRedirectUri(redirectUri).origin;
+    throw new Error(
+      `Invalid OAuth state - state not found in storage. Current origin: ${window.location.origin}, configured redirect origin: ${configuredOrigin}`
+    );
   }
 
   if (state !== expectedState) {
@@ -173,6 +191,7 @@ export const exchangeCodeForToken = async (code, state) => {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code }),
+    credentials: "include", // Include cookies for server-side session
   });
 
   console.log("[authService] Token exchange response status:", response.status, response.statusText);
@@ -223,10 +242,23 @@ export const clearStoredToken = () => {
 
 // Logout - keep user in the same tab on Familiez login page.
 // Also clear Synology session in the background (no popup, no redirect).
-export const initiateSSOLogout = () => {
+export const initiateSSOLogout = async () => {
   clearStoredToken();
 
-  const { authBaseUrl } = getAuthConfig();
+  const { authBaseUrl, apiBaseUrl } = getAuthConfig();
+  
+  // Destroy server-side session if enabled (NEW FEATURE)
+  if (apiBaseUrl) {
+    try {
+      await fetch(`${apiBaseUrl.replace(/\/$/, "")}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (err) {
+      console.warn("[authService] Failed to destroy server session:", err);
+    }
+  }
+
   const logoutBase = (authBaseUrl || '').replace(/\/$/, '');
   const synologyApiLogoutUrl = `${logoutBase}/webapi/auth.cgi?api=SYNO.API.Auth&method=logout&version=7`;
 
@@ -248,6 +280,71 @@ export const initiateSSOLogout = () => {
   }
 
   window.location.replace('/');
+};
+
+/**
+ * Session keepalive - call periodically to extend server-side session lifetime.
+ * Only works if USE_SERVER_SESSIONS=true on middleware.
+ * Automatically called every 5 minutes if session is active.
+ */
+export const sendSessionKeepalive = async () => {
+  const { apiBaseUrl } = getAuthConfig();
+  if (!apiBaseUrl) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/auth/keepalive`, {
+      method: "POST",
+      credentials: "include", // Include session cookie
+    });
+
+    if (!response.ok) {
+      console.warn(`[authService] Session keepalive failed: ${response.status}`);
+      return false;
+    }
+
+    const data = await response.json();
+    if (data.status === "renewed") {
+      console.debug("[authService] Session renewed via keepalive");
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.warn("[authService] Session keepalive error:", error);
+    return false;
+  }
+};
+
+/**
+ * Initialize session keepalive interval.
+ * Sends a heartbeat every 5 minutes to keep the server-side session alive.
+ * This is independent of the OAuth token lifetime.
+ */
+let keepaliveIntervalId = null;
+
+export const startSessionKeepalive = () => {
+  if (keepaliveIntervalId) {
+    return; // Already running
+  }
+
+  // Keep session alive every 5 minutes
+  const KEEPALIVE_INTERVAL_MS = 5 * 60 * 1000;
+  
+  keepaliveIntervalId = setInterval(() => {
+    sendSessionKeepalive();
+  }, KEEPALIVE_INTERVAL_MS);
+
+  console.log("[authService] Session keepalive started (every 5 minutes)");
+};
+
+export const stopSessionKeepalive = () => {
+  if (keepaliveIntervalId) {
+    clearInterval(keepaliveIntervalId);
+    keepaliveIntervalId = null;
+    console.log("[authService] Session keepalive stopped");
+  }
 };
 
 // Dispatch auth error event when token is invalid/expired
