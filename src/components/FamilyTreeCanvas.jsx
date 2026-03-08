@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
 import PersonTriangle from './PersonTriangle';
 import PersonContextMenu from './PersonContextMenu';
@@ -30,6 +30,9 @@ const FamilyTreeCanvas = ({
     const [contextMenu, setContextMenu] = useState(null);
     const [selectedPerson, setSelectedPerson] = useState(null);
     const [draggingPersonId, setDraggingPersonId] = useState(null);
+    const [isLoadingTree, setIsLoadingTree] = useState(false);
+    const [loadingDots, setLoadingDots] = useState('');
+    const buildRequestIdRef = useRef(0);
 
     // Layout constants
     const TRIANGLE_WIDTH = 120;
@@ -41,6 +44,8 @@ const FamilyTreeCanvas = ({
      * Build the family tree data structure
      */
     const buildFamilyTree = useCallback(async () => {
+        const requestId = ++buildRequestIdRef.current;
+
         if (!rootPerson) {
             // Clear all state when no root person is selected
             setFamilyData(new Map());
@@ -50,8 +55,11 @@ const FamilyTreeCanvas = ({
             setChildrenMap(new Map());
             setSiblingsMap(new Map());
             setCanvasSize({ width: 2000, height: 2000 });
+            setIsLoadingTree(false);
             return;
         }
+
+        setIsLoadingTree(true);
 
         // Clear existing state before building new tree
         setFamilyData(new Map());
@@ -316,24 +324,34 @@ const FamilyTreeCanvas = ({
             }
         };
 
-        // Build the tree
-        await buildUpward(rootPerson.PersonID, 0);
-        await buildDownward(rootPerson.PersonID, 0);
+        try {
+            // Build the tree
+            await buildUpward(rootPerson.PersonID, 0);
+            await buildDownward(rootPerson.PersonID, 0);
 
-        if (lastAddedParentId && newFamilyData.has(lastAddedParentId)) {
-            await includeChildrenForParent(lastAddedParentId);
+            if (lastAddedParentId && newFamilyData.has(lastAddedParentId)) {
+                await includeChildrenForParent(lastAddedParentId);
+            }
+
+            // Calculate positions and canvas size
+            const canvasDimensions = calculatePositions(newFamilyData, newParentsMap, newPartnersMap, newSiblingsMap, rootPerson.PersonID, newPositions);
+
+            if (requestId !== buildRequestIdRef.current) {
+                return;
+            }
+
+            setFamilyData(newFamilyData);
+            setParentsMap(newParentsMap);
+            setPartnersMap(newPartnersMap);
+            setChildrenMap(newChildrenMap);
+            setSiblingsMap(newSiblingsMap);
+            setPositions(newPositions);
+            setCanvasSize(canvasDimensions);
+        } finally {
+            if (requestId === buildRequestIdRef.current) {
+                setIsLoadingTree(false);
+            }
         }
-
-        // Calculate positions and canvas size
-        const canvasDimensions = calculatePositions(newFamilyData, newParentsMap, newPartnersMap, newSiblingsMap, rootPerson.PersonID, newPositions);
-
-        setFamilyData(newFamilyData);
-        setParentsMap(newParentsMap);
-        setPartnersMap(newPartnersMap);
-        setChildrenMap(newChildrenMap);
-        setSiblingsMap(newSiblingsMap);
-        setPositions(newPositions);
-        setCanvasSize(canvasDimensions);
     }, [rootPerson, nbrOfParentGenerations, nbrOfChildGenerations, treeRefreshTrigger, lastAddedParentId]);
 
     /**
@@ -707,6 +725,19 @@ const FamilyTreeCanvas = ({
         buildFamilyTree();
     }, [buildFamilyTree]);
 
+    useEffect(() => {
+        if (!isLoadingTree) {
+            setLoadingDots('');
+            return;
+        }
+
+        const interval = setInterval(() => {
+            setLoadingDots(prev => (prev.length >= 3 ? '' : `${prev}.`));
+        }, 400);
+
+        return () => clearInterval(interval);
+    }, [isLoadingTree]);
+
     if (!rootPerson) {
         return (
             <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
@@ -716,7 +747,7 @@ const FamilyTreeCanvas = ({
     }
 
     return (
-        <div style={{ width: '100%', height: '100%', overflow: 'auto' }}>
+        <div style={{ width: '100%', height: '100%', overflow: 'auto', position: 'relative' }}>
             <svg 
                 style={{ 
                     width: `${canvasSize.width}px`, 
@@ -756,6 +787,70 @@ const FamilyTreeCanvas = ({
                     );
                 })}
             </svg>
+
+            {isLoadingTree && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(235, 238, 242, 0.72)',
+                        backdropFilter: 'blur(1px)',
+                        zIndex: 20,
+                        pointerEvents: 'all',
+                        transition: 'opacity 200ms ease'
+                    }}
+                >
+                    <div
+                        style={{
+                            minWidth: '300px',
+                            padding: '20px 24px',
+                            borderRadius: '14px',
+                            background: 'rgba(255, 255, 255, 0.92)',
+                            boxShadow: '0 10px 30px rgba(23, 43, 77, 0.14)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '10px',
+                            color: '#213547'
+                        }}
+                    >
+                        <svg width="120" height="72" viewBox="0 0 120 72" role="img" aria-label="Stamboom wordt opgebouwd">
+                            <line x1="60" y1="58" x2="60" y2="36" stroke="#2f7bbf" strokeWidth="2.5" strokeLinecap="round">
+                                <animate attributeName="stroke-dasharray" values="0,40;40,0;0,40" dur="1.4s" repeatCount="indefinite" />
+                            </line>
+                            <line x1="60" y1="40" x2="36" y2="18" stroke="#4ca96a" strokeWidth="2.5" strokeLinecap="round">
+                                <animate attributeName="stroke-dasharray" values="0,40;40,0;0,40" dur="1.4s" begin="0.15s" repeatCount="indefinite" />
+                            </line>
+                            <line x1="60" y1="40" x2="84" y2="18" stroke="#4ca96a" strokeWidth="2.5" strokeLinecap="round">
+                                <animate attributeName="stroke-dasharray" values="0,40;40,0;0,40" dur="1.4s" begin="0.3s" repeatCount="indefinite" />
+                            </line>
+                            <circle cx="60" cy="58" r="4.2" fill="#2f7bbf" />
+                            <circle cx="36" cy="18" r="4.2" fill="#4ca96a" />
+                            <circle cx="84" cy="18" r="4.2" fill="#4ca96a" />
+                            <circle cx="108" cy="36" r="9" fill="none" stroke="#2f7bbf" strokeWidth="2" strokeLinecap="round" strokeDasharray="24 16">
+                                <animateTransform
+                                    attributeName="transform"
+                                    attributeType="XML"
+                                    type="rotate"
+                                    from="0 108 36"
+                                    to="360 108 36"
+                                    dur="1.1s"
+                                    repeatCount="indefinite"
+                                />
+                            </circle>
+                        </svg>
+                        <div style={{ fontSize: '16px', fontWeight: 600 }}>
+                            Stamboom wordt opgebouwd{loadingDots}
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#5f6b7a' }}>
+                            Gegevens worden opgehaald en verwerkt
+                        </div>
+                    </div>
+                </div>
+            )}
             
             {/* Context menu */}
             <PersonContextMenu
