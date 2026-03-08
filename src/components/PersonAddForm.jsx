@@ -183,6 +183,11 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
             return;
         }
         
+        if (!formData.PersonDateOfBirth || !formData.PersonDateOfBirth.trim()) {
+            setError('Geboortedatum is verplicht.');
+            return;
+        }
+        
         if (!formData.PersonPlaceOfBirth || !formData.PersonPlaceOfBirth.trim()) {
             setError('Geboorteplaats is verplicht.');
             return;
@@ -276,6 +281,7 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
                 value={formData.PersonDateOfBirth}
                 onChange={handleChange('PersonDateOfBirth')}
                 fullWidth
+                required
                 disabled={isSaving}
                 InputLabelProps={{ shrink: true }}
                 inputProps={{ max: new Date().toISOString().split('T')[0] }}
