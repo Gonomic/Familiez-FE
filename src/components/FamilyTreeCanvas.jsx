@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import PersonTriangle from './PersonTriangle';
 import PersonContextMenu from './PersonContextMenu';
 import { getPersonDetails, getFather, getMother, getChildren, getPartners } from '../services/familyDataService';
+import { getPersonPortraitUrl } from '../services/familyDataService';
 
 /**
  * FamilyTreeCanvas Component
@@ -33,12 +34,14 @@ const FamilyTreeCanvas = ({
     const [isLoadingTree, setIsLoadingTree] = useState(false);
     const [loadingDots, setLoadingDots] = useState('');
     const buildRequestIdRef = useRef(0);
+     // Cache voor portretfoto's
+     const [photoCache, setPhotoCache] = useState(new Map());
 
     // Layout constants
-    const TRIANGLE_WIDTH = 120;
-    const TRIANGLE_HEIGHT = 100;
-    const HORIZONTAL_GAP = 160;
-    const VERTICAL_GAP = 300;
+        const TRIANGLE_WIDTH = Math.round(120 * 1.3); // 156
+        const TRIANGLE_HEIGHT = Math.round(100 * 1.4); // 140
+        const HORIZONTAL_GAP = TRIANGLE_WIDTH * 2;
+        const VERTICAL_GAP = TRIANGLE_HEIGHT * 2;
 
     /**
      * Build the family tree data structure
@@ -347,6 +350,52 @@ const FamilyTreeCanvas = ({
             setSiblingsMap(newSiblingsMap);
             setPositions(newPositions);
             setCanvasSize(canvasDimensions);
+                // Lazy/progressieve foto-ophaal met caching en concurrency
+                const personIds = Array.from(newFamilyData.keys());
+                const maxConcurrency = 5;
+                let activeFetches = 0;
+                let queue = [...personIds];
+                const cache = new Map();
+
+                const fetchNext = async () => {
+                        if (queue.length === 0) return;
+                        if (activeFetches >= maxConcurrency) return;
+                        const personId = queue.shift();
+                        activeFetches++;
+                        (async () => {
+                            try {
+                                // Haal portretfoto-url op via utility
+                                const photoUrl = await getPersonPortraitUrl(personId);
+                                if (photoUrl) {
+                                    cache.set(personId, photoUrl);
+                                    // Voeg photoUrl toe aan familyData
+                                    const person = newFamilyData.get(personId);
+                                    if (person) {
+                                         if (!person.photoUrl) {
+                                            // Maak een nieuwe Map aan zodat React altijd een her-render doet
+                                                setFamilyData(prev => {
+                                                    const updated = new Map(prev);
+                                                    updated.set(personId, { ...person, photoUrl });
+                                                    return updated;
+                                                });
+                                         }
+                                    }
+                                }
+                            } catch (err) {
+                                // Fout bij foto-ophaal: log, maar boom blijft werken
+                                console.warn('Foto-ophaal fout voor persoon', personId, err);
+                            } finally {
+                                activeFetches--;
+                                setPhotoCache(new Map(cache));
+                                fetchNext();
+                            }
+                        })();
+                };
+
+                // Start initial fetches
+                for (let i = 0; i < maxConcurrency && queue.length > 0; i++) {
+                    fetchNext();
+                }
         } finally {
             if (requestId === buildRequestIdRef.current) {
                 setIsLoadingTree(false);
@@ -496,27 +545,30 @@ const FamilyTreeCanvas = ({
             
             // Default positioning for other generations
             const positioned = new Set();
-            let currentX = centerX - ((personsInGen.length - 1) * HORIZONTAL_GAP) / 2;
-            
+            // Bereken breedte van de grootste generatie
+            let maxGenWidth = 0;
+            generations.forEach((ids) => {
+                const genWidth = ids.length * (TRIANGLE_WIDTH + HORIZONTAL_GAP);
+                if (genWidth > maxGenWidth) maxGenWidth = genWidth;
+            });
+            // Bereken breedte van huidige generatie
+            let genWidth = personsInGen.length * (TRIANGLE_WIDTH + HORIZONTAL_GAP);
+            // Centreer huidige generatie binnen de breedste generatie
+            let currentX = ((maxGenWidth - genWidth) / 2) + TRIANGLE_WIDTH / 2;
+
             personsInGen.forEach((personId) => {
                 if (positioned.has(personId)) return;
-                
-                // Check if this person has a partner in the same generation
+
                 const partners = partnersMap.get(personId) || [];
-                const partnerInGen = partners.find(partnerId => 
-                    generations.get(gen)?.includes(partnerId)
-                );
-                
+                const partnerInGen = partners.find(partnerId => generations.get(gen)?.includes(partnerId));
+
                 if (partnerInGen && !positioned.has(partnerInGen)) {
-                    // Position as couple - man on the left
                     positionCouple(personId, partnerInGen, currentX, y, positions, positioned);
-                    // Verhoog currentX met breedte van beide driehoeken plus gap naar volgende persoon
-                    currentX += (TRIANGLE_WIDTH * 2) + HORIZONTAL_GAP;
+                    currentX += TRIANGLE_WIDTH + HORIZONTAL_GAP;
                 } else if (!positioned.has(personId)) {
-                    // Position alone
                     positions.set(personId, { x: currentX, y });
                     positioned.add(personId);
-                    currentX += HORIZONTAL_GAP;
+                    currentX += TRIANGLE_WIDTH + HORIZONTAL_GAP;
                 }
             });
         });
@@ -533,6 +585,19 @@ const FamilyTreeCanvas = ({
             minX = Math.min(minX, pos.x - TRIANGLE_WIDTH / 2);
             minY = Math.min(minY, pos.y);
         });
+
+        // Centreer rootpersoon zo veel mogelijk, maar zorg dat niemand links buiten het canvas valt
+        const canvasCenterX = (maxX - minX) / 2 + minX;
+        const rootPos = positions.get(rootPersonId);
+        if (rootPos) {
+            const shiftX = Math.max(canvasCenterX - rootPos.x, (TRIANGLE_WIDTH / 2) - (Math.min(...Array.from(positions.values()).map(p => p.x - TRIANGLE_WIDTH / 2))));
+            positions.forEach((pos, pid) => {
+                positions.set(pid, { x: pos.x + shiftX, y: pos.y });
+            });
+            maxX += shiftX;
+            minX += shiftX;
+        }
+          // <-- Overtollige haak verwijderd
         
         const CANVAS_PADDING = 200; // Extra padding around the tree
         const canvasWidth = Math.max(2000, maxX - minX + CANVAS_PADDING * 2);
@@ -725,6 +790,53 @@ const FamilyTreeCanvas = ({
         buildFamilyTree();
     }, [buildFamilyTree]);
 
+        // Haal portretfoto's op voor alle personen zonder photoUrl na elke wijziging van familyData
+        useEffect(() => {
+            if (!familyData || familyData.size === 0) return;
+            const personIds = Array.from(familyData.keys());
+            const maxConcurrency = 5;
+            let activeFetches = 0;
+            let queue = personIds.filter(pid => {
+                const person = familyData.get(pid);
+                return person && !person.photoUrl;
+            });
+            const cache = new Map(photoCache);
+
+            const fetchNext = async () => {
+                if (queue.length === 0) return;
+                if (activeFetches >= maxConcurrency) return;
+                const personId = queue.shift();
+                activeFetches++;
+                (async () => {
+                    try {
+                        const photoUrl = await getPersonPortraitUrl(personId);
+                        if (photoUrl) {
+                            cache.set(personId, photoUrl);
+                            const person = familyData.get(personId);
+                            if (person && !person.photoUrl) {
+                                setFamilyData(prev => {
+                                    const updated = new Map(prev);
+                                    updated.set(personId, { ...person, photoUrl });
+                                    return updated;
+                                });
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('Foto-ophaal fout voor persoon', personId, err);
+                    } finally {
+                        activeFetches--;
+                        setPhotoCache(new Map(cache));
+                        fetchNext();
+                    }
+                })();
+            };
+
+            // Start initial fetches
+            for (let i = 0; i < maxConcurrency && queue.length > 0; i++) {
+                fetchNext();
+            }
+        }, [familyData]);
+
     useEffect(() => {
         if (!isLoadingTree) {
             setLoadingDots('');
@@ -740,8 +852,49 @@ const FamilyTreeCanvas = ({
 
     if (!rootPerson) {
         return (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
-                Selecteer een persoon in de rechterdrawer om de stamboom te tonen
+            <div style={{
+                padding: '40px 0',
+                textAlign: 'center',
+                color: '#213547',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '32px',
+                minHeight: '320px',
+                position: 'relative'
+            }}>
+                <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px', position: 'relative', display: 'inline-block' }}>
+                    Klik rechtsboven op de drie streepjes om een persoon, familie of stamboom te kiezen.
+                    {/* Rechte blauwe pijl schuin omhoog naar menu-icoon */}
+                    <svg
+                        width="80" height="40"
+                        style={{ position: 'absolute', left: '100%', top: '0px' }}
+                        viewBox="0 0 80 40"
+                    >
+                        <defs>
+                            <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                                <polygon points="0,0 8,4 0,8" fill="#1976d2" />
+                            </marker>
+                        </defs>
+                        <line x1="0" y1="30" x2="75" y2="5" stroke="#1976d2" strokeWidth="3" markerEnd="url(#arrowhead)" />
+                    </svg>
+                </div>
+                <div style={{ fontSize: '15px', color: '#5f6b7a', marginTop: '16px', position: 'relative' }}>
+                    {/* Rechte groene pijl naar linksboven, platte kant vlak voor tekst */}
+                    <svg
+                        width="80" height="40"
+                        style={{ position: 'absolute', left: '-85px', top: '-2px' }}
+                        viewBox="0 0 80 40"
+                    >
+                        <defs>
+                            <marker id="arrowhead2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                                <polygon points="0,0 8,4 0,8" fill="#4ca96a" />
+                            </marker>
+                        </defs>
+                        <line x1="75" y1="35" x2="0" y2="5" stroke="#4ca96a" strokeWidth="3" markerEnd="url(#arrowhead2)" />
+                    </svg>
+                    Gebruik het menu links voor technische informatie, releasegegevens en het testen van de verbinding met de centrale omgeving.
+                </div>
             </div>
         );
     }

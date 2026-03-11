@@ -154,84 +154,96 @@ const PersonTriangle = ({
                 onMouseDown={handleMouseDown}
                 onClick={handleClick}
             />
-            
             {/* Gender indicator - colored bottom point (20% of height) */}
             <polygon
                 points={bottomTrianglePoints}
                 fill={genderColor}
                 pointerEvents="none"
             />
-            
             {/* Small blue triangle at top-left corner */}
             <polygon
                 points={topLeftTrianglePoints}
                 fill="#2196F3"
                 pointerEvents="none"
             />
-            
             {/* Small pink triangle at top-right corner */}
             <polygon
                 points={topRightTrianglePoints}
                 fill="#E91E63"
                 pointerEvents="none"
             />
-            
-            {/* Person's name - positioned near top */}
+            {/* Person's name - positioned near top, afgekapt */}
             <text
                 x={x}
-                y={y + 18}
+                y={y + 22}
                 textAnchor="middle"
                 fill="#1976d2"
-                fontSize="12"
+                fontSize="14"
                 fontFamily="Verdana, sans-serif"
                 fontWeight="bold"
                 pointerEvents="none"
             >
-                {formatText(fullName, 12)}
+                {formatText(fullName, 18)}
             </text>
-            
-            {/* Birth date - positioned below name */}
+            {/* Birth date - positioned onder naam */}
             <text
                 x={x}
-                y={y + 33}
+                y={y + 40}
                 textAnchor="middle"
                 fill="#666"
-                fontSize="10"
+                fontSize="11"
                 fontFamily="Verdana, sans-serif"
                 pointerEvents="none"
             >
-                {formatText(birthDate, 12)}
+                {formatText(birthDate, 14)}
             </text>
-            
-            {/* Death date - positioned below birth date (if exists) */}
+            {/* Death date - positioned onder geboortedatum (indien aanwezig) */}
             {deathDate && (
                 <text
                     x={x}
-                    y={y + 48}
+                    y={y + 58}
                     textAnchor="middle"
                     fill="#666"
-                    fontSize="10"
+                    fontSize="11"
                     fontFamily="Verdana, sans-serif"
                     pointerEvents="none"
                 >
-                    {formatText(deathDate, 12)}
+                    {formatText(deathDate, 14)}
                 </text>
             )}
-            
-            {/* Age - positioned below death date or birth date */}
+            {/* Age - positioned onder death date of birth date */}
             {age !== null && (
                 <text
                     x={x}
-                    y={deathDate ? y + 63 : y + 48}
+                    y={deathDate ? y + 76 : y + 58}
                     textAnchor="middle"
                     fill="#999"
-                    fontSize="10"
+                    fontSize="11"
                     fontFamily="Verdana, sans-serif"
                     fontStyle="italic"
                     pointerEvents="none"
                 >
                     {age} jaar
                 </text>
+            )}
+            {/* Fotozone als cirkel onderin driehoek */}
+            {person.photoUrl && (
+                    <circle
+                        cx={x}
+                        cy={y + height - 48}
+                        r={24}
+                        fill={`url(#personPhotoPattern_${person.PersonID})`}
+                        stroke="#1976d2"
+                        strokeWidth="1"
+                    />
+            )}
+            {/* SVG pattern voor foto (indien aanwezig) */}
+            {person.photoUrl && (
+                <defs>
+                    <pattern id={"personPhotoPattern_" + person.PersonID} patternUnits="userSpaceOnUse" width={48} height={48}>
+                        <image href={person.photoUrl} x="0" y="0" width={48} height={48} preserveAspectRatio="xMidYMid slice" />
+                    </pattern>
+                </defs>
             )}
         </g>
     );

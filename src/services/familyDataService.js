@@ -536,6 +536,20 @@ export const getPersonFiles = async (personId) => {
 };
 
 /**
+ * Get portrait photo URL for a person (document_type 'portret')
+ * @param {number} personId - Person ID
+ * @returns {Promise<string|null>} URL or null if not found
+ */
+export const getPersonPortraitUrl = async (personId) => {
+    const files = await getPersonFiles(personId);
+    const portret = files.find(f => f.document_type && f.document_type.toLowerCase() === 'portret');
+    if (portret && portret.file_id) {
+        return buildFileAccessUrl(`/api/files/${portret.file_id}`);
+    }
+    return null;
+};
+
+/**
  * Get files linked to a family couple (father + mother).
  * @param {number} fatherId - Father person ID
  * @param {number} motherId - Mother person ID
