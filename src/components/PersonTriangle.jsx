@@ -33,7 +33,7 @@ const PersonTriangle = ({
         e.stopPropagation();
         
         const svg = triangleRef.current.ownerSVGElement;
-        const CTM = svg.getScreenCTM();
+        const CTM = triangleRef.current.getScreenCTM();
         const point = svg.createSVGPoint();
         point.x = e.clientX;
         point.y = e.clientY;
@@ -57,7 +57,7 @@ const PersonTriangle = ({
             if (!triangleRef.current) return;
             
             const svg = triangleRef.current.ownerSVGElement;
-            const CTM = svg.getScreenCTM();
+            const CTM = triangleRef.current.getScreenCTM();
             const point = svg.createSVGPoint();
             point.x = e.clientX;
             point.y = e.clientY;
