@@ -5,6 +5,9 @@ import PersonContextMenu from './PersonContextMenu';
 import { getPersonDetails, getFather, getMother, getChildren, getPartners } from '../services/familyDataService';
 import { getPersonPortraitUrl } from '../services/familyDataService';
 
+const MIN_SCALE = 0.4;
+const MAX_SCALE = 2.5;
+
 /**
  * FamilyTreeCanvas Component
  * Main component for rendering the family tree with SVG
@@ -21,21 +24,26 @@ const FamilyTreeCanvas = ({
     onViewPerson,
     onManageFiles
 }) => {
-    const [familyData, setFamilyData] = useState(new Map()); // Map of PersonID -> person data
-    const [positions, setPositions] = useState(new Map()); // Map of PersonID -> {x, y}
-    const [parentsMap, setParentsMap] = useState(new Map()); // childID -> {fatherId, motherId}
-    const [partnersMap, setPartnersMap] = useState(new Map()); // personID -> [partnerIDs]
-    const [childrenMap, setChildrenMap] = useState(new Map()); // parentID -> [childIDs]
-    const [siblingsMap, setSiblingsMap] = useState(new Map()); // rootPersonID -> [siblingIDs sorted by age]
-    const [canvasSize, setCanvasSize] = useState({ width: 2000, height: 2000 }); // Dynamic canvas size
+    const [familyData, setFamilyData] = useState(new Map());
+    const [positions, setPositions] = useState(new Map());
+    const [parentsMap, setParentsMap] = useState(new Map());
+    const [partnersMap, setPartnersMap] = useState(new Map());
+    const [childrenMap, setChildrenMap] = useState(new Map());
+    const [siblingsMap, setSiblingsMap] = useState(new Map());
+    const [canvasSize, setCanvasSize] = useState({ width: 2000, height: 2000 });
     const [contextMenu, setContextMenu] = useState(null);
     const [selectedPerson, setSelectedPerson] = useState(null);
     const [draggingPersonId, setDraggingPersonId] = useState(null);
     const [isLoadingTree, setIsLoadingTree] = useState(false);
     const [loadingDots, setLoadingDots] = useState('');
     const buildRequestIdRef = useRef(0);
-     // Cache voor portretfoto's
-     const [photoCache, setPhotoCache] = useState(new Map());
+    // Cache voor portretfoto's
+    const [photoCache, setPhotoCache] = useState(new Map());
+    // Pan/zoom state
+    const [viewport, setViewport] = useState({ scale: 1, translateX: 0, translateY: 0 });
+    const [isPanning, setIsPanning] = useState(false);
+    const panStartRef = useRef({ x: 0, y: 0 });
+    const svgRef = useRef(null);
 
     // Layout constants
         const TRIANGLE_WIDTH = Math.round(120 * 1.3); // 156
@@ -607,13 +615,12 @@ const FamilyTreeCanvas = ({
     };
 
     /**
-     * Handle dragging of triangles
+     * Handle dragging of triangles (correct voor pan/zoom)
      */
     const handleDrag = useCallback((personId, newX, newY) => {
         setPositions(prev => {
             const newPositions = new Map(prev);
             newPositions.set(personId, { x: newX, y: newY });
-            
             // Move partners with the person
             const partners = partnersMap.get(personId) || [];
             partners.forEach(partnerId => {
@@ -627,7 +634,6 @@ const FamilyTreeCanvas = ({
                     });
                 }
             });
-            
             return newPositions;
         });
     }, [partnersMap]);
@@ -850,48 +856,125 @@ const FamilyTreeCanvas = ({
         return () => clearInterval(interval);
     }, [isLoadingTree]);
 
+    const getSvgPoint = useCallback((clientX, clientY) => {
+        if (!svgRef.current) {
+            return null;
+        }
+
+        const point = svgRef.current.createSVGPoint();
+        point.x = clientX;
+        point.y = clientY;
+
+        return point.matrixTransform(svgRef.current.getScreenCTM().inverse());
+    }, []);
+
+    const handleCanvasWheel = useCallback((event) => {
+        event.preventDefault();
+
+        const svgPoint = getSvgPoint(event.clientX, event.clientY);
+        if (!svgPoint) {
+            return;
+        }
+
+        setViewport(prev => {
+            const zoomFactor = event.deltaY < 0 ? 1.1 : 0.9;
+            const nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, prev.scale * zoomFactor));
+
+            if (nextScale === prev.scale) {
+                return prev;
+            }
+
+            const worldX = (svgPoint.x - prev.translateX) / prev.scale;
+            const worldY = (svgPoint.y - prev.translateY) / prev.scale;
+
+            return {
+                scale: nextScale,
+                translateX: svgPoint.x - (worldX * nextScale),
+                translateY: svgPoint.y - (worldY * nextScale)
+            };
+        });
+    }, [getSvgPoint]);
+
+    const handleCanvasMouseDown = useCallback((event) => {
+        if (event.button !== 0 || draggingPersonId) {
+            return;
+        }
+
+        const svgPoint = getSvgPoint(event.clientX, event.clientY);
+        if (!svgPoint) {
+            return;
+        }
+
+        setContextMenu(null);
+        setIsPanning(true);
+        panStartRef.current = svgPoint;
+    }, [draggingPersonId, getSvgPoint]);
+
+    const handleCanvasMouseMove = useCallback((event) => {
+        if (!isPanning) {
+            return;
+        }
+
+        const svgPoint = getSvgPoint(event.clientX, event.clientY);
+        if (!svgPoint) {
+            return;
+        }
+
+        const deltaX = svgPoint.x - panStartRef.current.x;
+        const deltaY = svgPoint.y - panStartRef.current.y;
+
+        setViewport(prev => ({
+            ...prev,
+            translateX: prev.translateX + deltaX,
+            translateY: prev.translateY + deltaY
+        }));
+
+        panStartRef.current = svgPoint;
+    }, [getSvgPoint, isPanning]);
+
+    const stopPanning = useCallback(() => {
+        setIsPanning(false);
+    }, []);
+
+    const resetViewport = useCallback(() => {
+        setViewport({ scale: 1, translateX: 0, translateY: 0 });
+    }, []);
+
     if (!rootPerson) {
         return (
-            <div style={{
-                padding: '40px 0',
-                textAlign: 'center',
-                color: '#213547',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '32px',
-                minHeight: '320px',
-                position: 'relative'
-            }}>
-                <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px', position: 'relative', display: 'inline-block' }}>
+            <div
+                style={{
+                    padding: '40px 24px',
+                    textAlign: 'center',
+                    color: '#213547',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '28px',
+                    minHeight: '320px',
+                    position: 'relative'
+                }}
+            >
+                <div style={{ fontSize: '18px', fontWeight: 600, position: 'relative', maxWidth: '780px', lineHeight: 1.5 }}>
                     Klik rechtsboven op de drie streepjes om een persoon, familie of stamboom te kiezen.
-                    {/* Rechte blauwe pijl schuin omhoog naar menu-icoon */}
-                    <svg
-                        width="80" height="40"
-                        style={{ position: 'absolute', left: '100%', top: '0px' }}
-                        viewBox="0 0 80 40"
-                    >
+                    <svg width="96" height="54" style={{ position: 'absolute', left: '100%', top: '-6px' }} viewBox="0 0 96 54" aria-hidden="true">
                         <defs>
-                            <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                            <marker id="family-tree-arrow-right" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
                                 <polygon points="0,0 8,4 0,8" fill="#1976d2" />
                             </marker>
                         </defs>
-                        <line x1="0" y1="30" x2="75" y2="5" stroke="#1976d2" strokeWidth="3" markerEnd="url(#arrowhead)" />
+                        <path d="M4 44 C 28 44, 34 10, 90 8" fill="none" stroke="#1976d2" strokeWidth="3" markerEnd="url(#family-tree-arrow-right)" />
                     </svg>
                 </div>
-                <div style={{ fontSize: '15px', color: '#5f6b7a', marginTop: '16px', position: 'relative' }}>
-                    {/* Rechte groene pijl naar linksboven, platte kant vlak voor tekst */}
-                    <svg
-                        width="80" height="40"
-                        style={{ position: 'absolute', left: '-85px', top: '-2px' }}
-                        viewBox="0 0 80 40"
-                    >
+                <div style={{ fontSize: '15px', color: '#5f6b7a', position: 'relative', maxWidth: '780px', lineHeight: 1.5 }}>
+                    <svg width="96" height="54" style={{ position: 'absolute', right: '100%', top: '-2px' }} viewBox="0 0 96 54" aria-hidden="true">
                         <defs>
-                            <marker id="arrowhead2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                            <marker id="family-tree-arrow-left" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
                                 <polygon points="0,0 8,4 0,8" fill="#4ca96a" />
                             </marker>
                         </defs>
-                        <line x1="75" y1="35" x2="0" y2="5" stroke="#4ca96a" strokeWidth="3" markerEnd="url(#arrowhead2)" />
+                        <path d="M92 44 C 68 44, 58 18, 8 12" fill="none" stroke="#4ca96a" strokeWidth="3" markerEnd="url(#family-tree-arrow-left)" />
                     </svg>
                     Gebruik het menu links voor technische informatie, releasegegevens en het testen van de verbinding met de centrale omgeving.
                 </div>
@@ -900,45 +983,75 @@ const FamilyTreeCanvas = ({
     }
 
     return (
-        <div style={{ width: '100%', height: '100%', overflow: 'auto', position: 'relative' }}>
-            <svg 
-                style={{ 
-                    width: `${canvasSize.width}px`, 
-                    height: `${canvasSize.height}px`,
-                    minWidth: '100%',
-                    minHeight: '100%'
+        <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: '520px', overflow: 'hidden' }}>
+            <button
+                type="button"
+                onClick={resetViewport}
+                style={{
+                    position: 'absolute',
+                    top: 16,
+                    right: 16,
+                    zIndex: 3,
+                    background: '#1976d2',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '8px 16px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.08)'
                 }}
             >
-                {/* Connection lines (drawn first, so they appear behind triangles) */}
-                {renderConnectionLines()}
-                
-                {/* Person triangles */}
-                {Array.from(familyData.entries()).map(([personId, person]) => {
-                    const pos = positions.get(personId);
-                    if (!pos) return null;
-                    
-                    return (
-                        <PersonTriangle
-                            key={personId}
-                            person={person}
-                            x={pos.x}
-                            y={pos.y}
-                            width={TRIANGLE_WIDTH}
-                            height={TRIANGLE_HEIGHT}
-                            onDragStart={setDraggingPersonId}
-                            onDrag={handleDrag}
-                            onDragEnd={() => setDraggingPersonId(null)}
-                            onClick={handleTriangleClick}
-                            partners={partnersMap.get(personId) || []}
-                            isPartnerDragging={
-                                draggingPersonId && 
-                                partnersMap.get(draggingPersonId)?.includes(personId)
-                            }
-                            isSelected={selectedPerson && selectedPerson.PersonID === personId}
-                            isRootPerson={personId === rootPerson?.PersonID}
-                        />
-                    );
-                })}
+                Reset view
+            </button>
+
+            <svg
+                ref={svgRef}
+                width={canvasSize.width}
+                height={canvasSize.height}
+                style={{
+                    display: 'block',
+                    width: '100%',
+                    height: '100%',
+                    background: '#f7f7fa',
+                    cursor: isPanning ? 'grabbing' : 'grab',
+                    userSelect: 'none'
+                }}
+                onWheel={handleCanvasWheel}
+                onMouseDown={handleCanvasMouseDown}
+                onMouseMove={handleCanvasMouseMove}
+                onMouseUp={stopPanning}
+                onMouseLeave={stopPanning}
+            >
+                <rect x="0" y="0" width={canvasSize.width} height={canvasSize.height} fill="transparent" />
+                <g transform={`translate(${viewport.translateX},${viewport.translateY}) scale(${viewport.scale})`}>
+                    {renderConnectionLines()}
+                    {Array.from(familyData.entries()).map(([personId, person]) => {
+                        const pos = positions.get(personId);
+                        if (!pos) {
+                            return null;
+                        }
+
+                        return (
+                            <PersonTriangle
+                                key={personId}
+                                person={person}
+                                x={pos.x}
+                                y={pos.y}
+                                width={TRIANGLE_WIDTH}
+                                height={TRIANGLE_HEIGHT}
+                                onDragStart={setDraggingPersonId}
+                                onDrag={handleDrag}
+                                onDragEnd={() => setDraggingPersonId(null)}
+                                onClick={handleTriangleClick}
+                                partners={partnersMap.get(personId) || []}
+                                isPartnerDragging={Boolean(draggingPersonId && partnersMap.get(draggingPersonId)?.includes(personId))}
+                                isSelected={Boolean(selectedPerson && selectedPerson.PersonID === personId)}
+                                isRootPerson={personId === rootPerson.PersonID}
+                            />
+                        );
+                    })}
+                </g>
             </svg>
 
             {isLoadingTree && (
@@ -952,8 +1065,7 @@ const FamilyTreeCanvas = ({
                         background: 'rgba(235, 238, 242, 0.72)',
                         backdropFilter: 'blur(1px)',
                         zIndex: 20,
-                        pointerEvents: 'all',
-                        transition: 'opacity 200ms ease'
+                        pointerEvents: 'all'
                     }}
                 >
                     <div
@@ -980,52 +1092,40 @@ const FamilyTreeCanvas = ({
                             <line x1="60" y1="40" x2="84" y2="18" stroke="#4ca96a" strokeWidth="2.5" strokeLinecap="round">
                                 <animate attributeName="stroke-dasharray" values="0,40;40,0;0,40" dur="1.4s" begin="0.3s" repeatCount="indefinite" />
                             </line>
-                            <circle cx="60" cy="58" r="4.2" fill="#2f7bbf" />
-                            <circle cx="36" cy="18" r="4.2" fill="#4ca96a" />
-                            <circle cx="84" cy="18" r="4.2" fill="#4ca96a" />
-                            <circle cx="108" cy="36" r="9" fill="none" stroke="#2f7bbf" strokeWidth="2" strokeLinecap="round" strokeDasharray="24 16">
-                                <animateTransform
-                                    attributeName="transform"
-                                    attributeType="XML"
-                                    type="rotate"
-                                    from="0 108 36"
-                                    to="360 108 36"
-                                    dur="1.1s"
-                                    repeatCount="indefinite"
-                                />
+                            <circle cx="60" cy="58" r="7" fill="#2f7bbf">
+                                <animate attributeName="r" values="6;7.5;6" dur="1.4s" repeatCount="indefinite" />
+                            </circle>
+                            <circle cx="36" cy="18" r="6" fill="#f28a5d">
+                                <animate attributeName="opacity" values="0.55;1;0.55" dur="1.4s" begin="0.15s" repeatCount="indefinite" />
+                            </circle>
+                            <circle cx="84" cy="18" r="6" fill="#f28a5d">
+                                <animate attributeName="opacity" values="0.55;1;0.55" dur="1.4s" begin="0.3s" repeatCount="indefinite" />
                             </circle>
                         </svg>
-                        <div style={{ fontSize: '16px', fontWeight: 600 }}>
-                            Stamboom wordt opgebouwd{loadingDots}
-                        </div>
-                        <div style={{ fontSize: '13px', color: '#5f6b7a' }}>
-                            Gegevens worden opgehaald en verwerkt
-                        </div>
+                        <div style={{ fontSize: '18px', fontWeight: 700 }}>Stamboom wordt opgebouwd{loadingDots}</div>
                     </div>
                 </div>
             )}
-            
-            {/* Context menu */}
-            <PersonContextMenu
-                anchorPosition={contextMenu}
-                onClose={handleCloseContextMenu}
-                onEditPerson={handleEditPerson}
-                onDeletePerson={handleDeletePerson}
-                onAddPerson={handleAddPerson}
-                onViewPerson={handleViewPerson}
-                onManageFiles={handleManageFiles}
-                person={selectedPerson}
-            />
+
+            {contextMenu && selectedPerson && (
+                <PersonContextMenu
+                    person={selectedPerson}
+                    anchorPosition={contextMenu}
+                    onClose={handleCloseContextMenu}
+                    onEditPerson={handleEditPerson}
+                    onDeletePerson={handleDeletePerson}
+                    onAddPerson={handleAddPerson}
+                    onViewPerson={handleViewPerson}
+                    onManageFiles={handleManageFiles}
+                />
+            )}
         </div>
     );
 };
 
 FamilyTreeCanvas.propTypes = {
     rootPerson: PropTypes.shape({
-        PersonID: PropTypes.number.isRequired,
-        PersonGivvenName: PropTypes.string,
-        PersonFamilyName: PropTypes.string,
-        PersonDateOfBirth: PropTypes.string,
+        PersonID: PropTypes.number,
     }),
     nbrOfParentGenerations: PropTypes.number,
     nbrOfChildGenerations: PropTypes.number,
