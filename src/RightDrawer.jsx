@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
-import { Autocomplete, TextField, Typography, Button } from "@mui/material";
+import { Alert, Autocomplete, TextField, Typography, Button } from "@mui/material";
 import Drawer from '@mui/material/Drawer';
 import { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
@@ -12,12 +12,14 @@ import PersonViewForm from './components/PersonViewForm';
 import PersonFilesForm from './components/PersonFilesForm';
 import { getPersonsLike } from './services/familyDataService';
 import { getUserInfo } from './services/authService';
+import { NO_CONNECTION_ERROR_TEXT } from './constants/errorMessages';
 
 function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUpdated, personToDelete, personToAdd, personToView, personForFiles, onPersonAdded, onPersonDeleted, onAddPersonClick }) {
     const navigate = useNavigate();
     const [person, setPerson] = useState(null);
     const [persons, setPersons] = useState([]);
     const [inputValue, setInputValue] = useState("");
+    const [buildTreeError, setBuildTreeError] = useState('');
     const isSelectingRef = useRef(false);
     const [mode, setMode] = useState('select'); // 'select', 'edit', 'delete', 'add', 'view', 'files'
     const userInfo = getUserInfo();
@@ -46,6 +48,7 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
     // Handle atomic change of Autocomplete field
     const handleInputChange = (event, newInputValue) => {
         setInputValue(newInputValue);
+        setBuildTreeError('');
         if (!isSelectingRef.current) {
             debouncedGetNames(newInputValue);
         }
@@ -56,8 +59,15 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
     const debouncedGetNames = useRef(
         debounce(async (value) => {
             if (!isSelectingRef.current) {
-                const data = await getPersonsLike(value);
-                setPersons(data);
+                try {
+                    const data = await getPersonsLike(value, { throwOnError: true });
+                    setPersons(data);
+                    setBuildTreeError('');
+                } catch (error) {
+                    console.error('Error while searching persons in right drawer:', error);
+                    setPersons([]);
+                    setBuildTreeError(NO_CONNECTION_ERROR_TEXT);
+                }
             }
         }, 1500)
     ).current;
@@ -177,6 +187,12 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
                             <Typography variant="h6" sx={{ mb: 3 }}>
                                 Stamboom Opbouwen
                             </Typography>
+
+                            {buildTreeError && (
+                                <Alert severity="error" sx={{ mb: 2 }}>
+                                    {buildTreeError}
+                                </Alert>
+                            )}
 
                             <Autocomplete
                                 value={person}

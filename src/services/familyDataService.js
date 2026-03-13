@@ -4,6 +4,7 @@
  */
 
 import { getStoredToken, setAuthHeader, notifyAuthError, clearStoredToken } from "./authService";
+import { NO_CONNECTION_ERROR_TEXT } from "../constants/errorMessages";
 
 const MW_BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
@@ -55,7 +56,8 @@ export const buildFileAccessUrl = (path) => {
  * @param {string} searchString - The string to search for
  * @returns {Promise<Array>} Array of matching persons
  */
-export const getPersonsLike = async (searchString) => {
+export const getPersonsLike = async (searchString, options = {}) => {
+    const { throwOnError = false } = options;
     if (!searchString) return [];
     try {
         const url = `${MW_BASE_URL}/GetPersonsLike?stringToSearchFor=${searchString}`;
@@ -66,12 +68,18 @@ export const getPersonsLike = async (searchString) => {
             clearStoredToken();
             notifyAuthError("Uw sessie is verlopen. Meld u alstublieft opnieuw aan.");
             console.warn('Auth token expired, clearing and notifying user');
+            if (throwOnError) {
+                throw new Error('Uw sessie is verlopen. Meld u alstublieft opnieuw aan.');
+            }
             return [];
         }
         
         // Check response status
         if (!response.ok) {
             console.error(`GetPersonsLike failed: ${response.status} ${response.statusText}`);
+            if (throwOnError) {
+                throw new Error(NO_CONNECTION_ERROR_TEXT);
+            }
             return [];
         }
         
@@ -80,6 +88,9 @@ export const getPersonsLike = async (searchString) => {
         // Validate data structure
         if (!Array.isArray(data) || !data[0]) {
             console.error('GetPersonsLike: Invalid response structure', data);
+            if (throwOnError) {
+                throw new Error('Geen geldige reactie van de server ontvangen. Probeer het later opnieuw.');
+            }
             return [];
         }
         
@@ -89,6 +100,9 @@ export const getPersonsLike = async (searchString) => {
         return [];
     } catch (error) {
         console.error('Error getting persons like:', error);
+        if (throwOnError) {
+            throw error;
+        }
         return [];
     }
 };
@@ -98,7 +112,8 @@ export const getPersonsLike = async (searchString) => {
  * @param {number} personId - The ID of the person
  * @returns {Promise<Object|null>} Person details or null
  */
-export const getPersonDetails = async (personId) => {
+export const getPersonDetails = async (personId, options = {}) => {
+    const { throwOnError = false } = options;
     try {
         const url = `${MW_BASE_URL}/GetPersonDetails?personID=${personId}`;
         const response = await fetch(url);
@@ -112,6 +127,9 @@ export const getPersonDetails = async (personId) => {
         
         if (!response.ok) {
             console.error(`GetPersonDetails failed: ${response.status} ${response.statusText}`);
+            if (throwOnError) {
+                throw new Error(NO_CONNECTION_ERROR_TEXT);
+            }
             return null;
         }
         const data = await response.json();
@@ -121,6 +139,9 @@ export const getPersonDetails = async (personId) => {
         return null;
     } catch (error) {
         console.error('Error getting person details:', error);
+        if (throwOnError) {
+            throw new Error(NO_CONNECTION_ERROR_TEXT);
+        }
         return null;
     }
 };
@@ -130,7 +151,8 @@ export const getPersonDetails = async (personId) => {
  * @param {number} childId - The ID of the child
  * @returns {Promise<number|null>} Father's ID or null
  */
-export const getFather = async (childId) => {
+export const getFather = async (childId, options = {}) => {
+    const { throwOnError = false } = options;
     try {
         const url = `${MW_BASE_URL}/GetFather?childID=${childId}`;
         const response = await fetch(url);
@@ -144,6 +166,9 @@ export const getFather = async (childId) => {
         
         if (!response.ok) {
             console.error(`GetFather failed: ${response.status} ${response.statusText}`);
+            if (throwOnError) {
+                throw new Error(NO_CONNECTION_ERROR_TEXT);
+            }
             return null;
         }
         const data = await response.json();
@@ -153,6 +178,9 @@ export const getFather = async (childId) => {
         return null;
     } catch (error) {
         console.error('Error getting father:', error);
+        if (throwOnError) {
+            throw new Error(NO_CONNECTION_ERROR_TEXT);
+        }
         return null;
     }
 };
@@ -162,7 +190,8 @@ export const getFather = async (childId) => {
  * @param {number} childId - The ID of the child
  * @returns {Promise<number|null>} Mother's ID or null
  */
-export const getMother = async (childId) => {
+export const getMother = async (childId, options = {}) => {
+    const { throwOnError = false } = options;
     try {
         const url = `${MW_BASE_URL}/GetMother?childID=${childId}`;
         const response = await fetch(url);
@@ -176,6 +205,9 @@ export const getMother = async (childId) => {
         
         if (!response.ok) {
             console.error(`GetMother failed: ${response.status} ${response.statusText}`);
+            if (throwOnError) {
+                throw new Error(NO_CONNECTION_ERROR_TEXT);
+            }
             return null;
         }
         const data = await response.json();
@@ -185,6 +217,9 @@ export const getMother = async (childId) => {
         return null;
     } catch (error) {
         console.error('Error getting mother:', error);
+        if (throwOnError) {
+            throw new Error(NO_CONNECTION_ERROR_TEXT);
+        }
         return null;
     }
 };
@@ -226,7 +261,8 @@ export const getSiblings = async (parentId) => {
  * @param {number} personId - The ID of the person
  * @returns {Promise<Array>} Array of partners
  */
-export const getPartners = async (personId) => {
+export const getPartners = async (personId, options = {}) => {
+    const { throwOnError = false } = options;
     try {
         const url = `${MW_BASE_URL}/GetPartners?personID=${personId}`;
         const response = await fetch(url);
@@ -240,15 +276,38 @@ export const getPartners = async (personId) => {
         
         if (!response.ok) {
             console.error(`GetPartners failed: ${response.status} ${response.statusText}`);
+            if (throwOnError) {
+                throw new Error(NO_CONNECTION_ERROR_TEXT);
+            }
             return [];
         }
         const data = await response.json();
         if (Array.isArray(data) && data[0] && data[0].numberOfRecords >= 1) {
-            return data.slice(1);
+            const partners = data.slice(1);
+
+            // Domain rule: a person can only have 0 or 1 partner.
+            const uniquePartners = [];
+            const seenIds = new Set();
+            for (const partner of partners) {
+                if (!partner || !partner.PersonID || seenIds.has(partner.PersonID)) {
+                    continue;
+                }
+                seenIds.add(partner.PersonID);
+                uniquePartners.push(partner);
+            }
+
+            if (uniquePartners.length > 1) {
+                console.warn(`GetPartners returned more than one partner for person ${personId}. Using first result.`);
+            }
+
+            return uniquePartners.slice(0, 1);
         }
         return [];
     } catch (error) {
         console.error('Error getting partners:', error);
+        if (throwOnError) {
+            throw new Error(NO_CONNECTION_ERROR_TEXT);
+        }
         return [];
     }
 };
@@ -258,7 +317,8 @@ export const getPartners = async (personId) => {
  * @param {number} personId - The ID of the person
  * @returns {Promise<Array>} Array of children
  */
-export const getChildren = async (personId) => {
+export const getChildren = async (personId, options = {}) => {
+    const { throwOnError = false } = options;
     try {
         const url = `${MW_BASE_URL}/GetChildren?personID=${personId}`;
         const response = await fetch(url);
@@ -272,6 +332,9 @@ export const getChildren = async (personId) => {
         
         if (!response.ok) {
             console.error(`GetChildren failed: ${response.status} ${response.statusText}`);
+            if (throwOnError) {
+                throw new Error(NO_CONNECTION_ERROR_TEXT);
+            }
             return [];
         }
         const data = await response.json();
@@ -281,6 +344,9 @@ export const getChildren = async (personId) => {
         return [];
     } catch (error) {
         console.error('Error getting children:', error);
+        if (throwOnError) {
+            throw new Error(NO_CONNECTION_ERROR_TEXT);
+        }
         return [];
     }
 };
@@ -290,12 +356,20 @@ export const getChildren = async (personId) => {
  * @param {string} personDateOfBirth - Birth date (YYYY-MM-DD)
  * @returns {Promise<Array>} Array of possible mothers
  */
-export const getPossibleMothersBasedOnAge = async (personDateOfBirth) => {
+export const getPossibleMothersBasedOnAge = async (personDateOfBirth, options = {}) => {
+    const { throwOnError = false } = options;
     if (!personDateOfBirth) return [];
     try {
         const encodedDate = encodeURIComponent(personDateOfBirth);
         const url = `${MW_BASE_URL}/GetPossibleMothersBasedOnAge?personDateOfBirth=${encodedDate}`;
         const response = await fetch(url);
+        if (!response.ok) {
+            console.error(`GetPossibleMothersBasedOnAge failed: ${response.status} ${response.statusText}`);
+            if (throwOnError) {
+                throw new Error(NO_CONNECTION_ERROR_TEXT);
+            }
+            return [];
+        }
         const data = await response.json();
         if (data[0].numberOfRecords >= 1) {
             return data.slice(1);
@@ -303,6 +377,9 @@ export const getPossibleMothersBasedOnAge = async (personDateOfBirth) => {
         return [];
     } catch (error) {
         console.error('Error getting possible mothers based on age:', error);
+        if (throwOnError) {
+            throw new Error(NO_CONNECTION_ERROR_TEXT);
+        }
         return [];
     }
 };
@@ -312,12 +389,20 @@ export const getPossibleMothersBasedOnAge = async (personDateOfBirth) => {
  * @param {string} personDateOfBirth - Birth date (YYYY-MM-DD)
  * @returns {Promise<Array>} Array of possible fathers
  */
-export const getPossibleFathersBasedOnAge = async (personDateOfBirth) => {
+export const getPossibleFathersBasedOnAge = async (personDateOfBirth, options = {}) => {
+    const { throwOnError = false } = options;
     if (!personDateOfBirth) return [];
     try {
         const encodedDate = encodeURIComponent(personDateOfBirth);
         const url = `${MW_BASE_URL}/GetPossibleFathersBasedOnAge?personDateOfBirth=${encodedDate}`;
         const response = await fetch(url);
+        if (!response.ok) {
+            console.error(`GetPossibleFathersBasedOnAge failed: ${response.status} ${response.statusText}`);
+            if (throwOnError) {
+                throw new Error(NO_CONNECTION_ERROR_TEXT);
+            }
+            return [];
+        }
         const data = await response.json();
         if (data[0].numberOfRecords >= 1) {
             return data.slice(1);
@@ -325,6 +410,9 @@ export const getPossibleFathersBasedOnAge = async (personDateOfBirth) => {
         return [];
     } catch (error) {
         console.error('Error getting possible fathers based on age:', error);
+        if (throwOnError) {
+            throw new Error(NO_CONNECTION_ERROR_TEXT);
+        }
         return [];
     }
 };
@@ -334,12 +422,20 @@ export const getPossibleFathersBasedOnAge = async (personDateOfBirth) => {
  * @param {string} personDateOfBirth - Birth date (YYYY-MM-DD)
  * @returns {Promise<Array>} Array of possible partners
  */
-export const getPossiblePartnersBasedOnAge = async (personDateOfBirth) => {
+export const getPossiblePartnersBasedOnAge = async (personDateOfBirth, options = {}) => {
+    const { throwOnError = false } = options;
     if (!personDateOfBirth) return [];
     try {
         const encodedDate = encodeURIComponent(personDateOfBirth);
         const url = `${MW_BASE_URL}/GetPossiblePartnersBasedOnAge?personDateOfBirth=${encodedDate}`;
         const response = await fetch(url);
+        if (!response.ok) {
+            console.error(`GetPossiblePartnersBasedOnAge failed: ${response.status} ${response.statusText}`);
+            if (throwOnError) {
+                throw new Error(NO_CONNECTION_ERROR_TEXT);
+            }
+            return [];
+        }
         const data = await response.json();
         if (data[0].numberOfRecords >= 1) {
             return data.slice(1);
@@ -347,6 +443,9 @@ export const getPossiblePartnersBasedOnAge = async (personDateOfBirth) => {
         return [];
     } catch (error) {
         console.error('Error getting possible partners based on age:', error);
+        if (throwOnError) {
+            throw new Error(NO_CONNECTION_ERROR_TEXT);
+        }
         return [];
     }
 };

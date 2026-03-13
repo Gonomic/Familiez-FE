@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Box, TextField, Button, Typography, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, MenuItem } from '@mui/material';
+import { Alert, Box, TextField, Button, Typography, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, MenuItem } from '@mui/material';
+import { NO_CONNECTION_ERROR_TEXT } from '../constants/errorMessages';
 import PropTypes from 'prop-types';
 import { updatePerson, getPossibleMothersBasedOnAge, getPossibleFathersBasedOnAge, getPossiblePartnersBasedOnAge, getFather, getMother, getPartners, getChildren } from '../services/familyDataService';
 
@@ -42,6 +43,7 @@ const hasInvalidChars = (text) => {
  * Form for editing person details in the right drawer
  */
 const PersonEditForm = ({ person, onSave, onCancel }) => {
+    const LOADING_OPTION_VALUE = '__loading__';
     const [formData, setFormData] = useState({
         PersonGivvenName: '',
         PersonFamilyName: '',
@@ -62,6 +64,21 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
     const [isLoadingFathers, setIsLoadingFathers] = useState(false);
     const [possiblePartners, setPossiblePartners] = useState([]);
     const [isLoadingPartners, setIsLoadingPartners] = useState(false);
+    const [loadingDots, setLoadingDots] = useState(1);
+
+    useEffect(() => {
+        const isAnyRelationLoading = isLoadingFathers || isLoadingMothers || isLoadingPartners;
+        if (!isAnyRelationLoading) {
+            setLoadingDots(1);
+            return undefined;
+        }
+
+        const intervalId = setInterval(() => {
+            setLoadingDots((prev) => (prev >= 3 ? 1 : prev + 1));
+        }, 450);
+
+        return () => clearInterval(intervalId);
+    }, [isLoadingFathers, isLoadingMothers, isLoadingPartners]);
 
     // Load person data and current relations
     useEffect(() => {
@@ -83,9 +100,9 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
             const loadRelations = async () => {
                 try {
                     const [fatherId, motherId, partners] = await Promise.all([
-                        getFather(person.PersonID),
-                        getMother(person.PersonID),
-                        getPartners(person.PersonID)
+                        getFather(person.PersonID, { throwOnError: true }),
+                        getMother(person.PersonID, { throwOnError: true }),
+                        getPartners(person.PersonID, { throwOnError: true })
                     ]);
 
                     setFormData(prev => ({
@@ -96,6 +113,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                     }));
                 } catch (err) {
                     console.error('Error loading relations:', err);
+                    setError(NO_CONNECTION_ERROR_TEXT);
                 }
             };
 
@@ -114,10 +132,13 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
         const fetchPossibleMothers = async () => {
             setIsLoadingMothers(true);
             try {
-                const mothers = await getPossibleMothersBasedOnAge(formData.PersonDateOfBirth);
+                const mothers = await getPossibleMothersBasedOnAge(formData.PersonDateOfBirth, { throwOnError: true });
                 if (!isCancelled) {
                     setPossibleMothers(mothers);
                 }
+            } catch (err) {
+                console.error('Error loading possible mothers:', err);
+                if (!isCancelled) setError(NO_CONNECTION_ERROR_TEXT);
             } finally {
                 if (!isCancelled) {
                     setIsLoadingMothers(false);
@@ -143,10 +164,13 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
         const fetchPossibleFathers = async () => {
             setIsLoadingFathers(true);
             try {
-                const fathers = await getPossibleFathersBasedOnAge(formData.PersonDateOfBirth);
+                const fathers = await getPossibleFathersBasedOnAge(formData.PersonDateOfBirth, { throwOnError: true });
                 if (!isCancelled) {
                     setPossibleFathers(fathers);
                 }
+            } catch (err) {
+                console.error('Error loading possible fathers:', err);
+                if (!isCancelled) setError(NO_CONNECTION_ERROR_TEXT);
             } finally {
                 if (!isCancelled) {
                     setIsLoadingFathers(false);
@@ -174,14 +198,14 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
             try {
                 const parentIds = [formData.FatherId, formData.MotherId].filter(Boolean);
                 const childrenByParent = await Promise.all(
-                    parentIds.map(parentId => getChildren(parentId))
+                    parentIds.map(parentId => getChildren(parentId, { throwOnError: true }))
                 );
                 const siblingIds = new Set(
                     childrenByParent.flat().map(child => child.PersonID)
                 );
                 parentIds.forEach(parentId => siblingIds.add(parentId));
 
-                const partners = await getPossiblePartnersBasedOnAge(formData.PersonDateOfBirth);
+                const partners = await getPossiblePartnersBasedOnAge(formData.PersonDateOfBirth, { throwOnError: true });
                 const birthYear = new Date(formData.PersonDateOfBirth).getFullYear();
 
                 const filteredPartners = partners.filter(partner => {
@@ -201,6 +225,9 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 if (!isCancelled) {
                     setPossiblePartners(filteredPartners);
                 }
+            } catch (err) {
+                console.error('Error loading possible partners:', err);
+                if (!isCancelled) setError(NO_CONNECTION_ERROR_TEXT);
             } finally {
                 if (!isCancelled) {
                     setIsLoadingPartners(false);
@@ -299,6 +326,8 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
         return null;
     }
 
+    const loadingText = `Gegevens worden opgehaald${'.'.repeat(loadingDots)}`;
+
     return (
         <Box
             component="form"
@@ -316,9 +345,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
             </Typography>
 
             {error && (
-                <Typography color="error" variant="body2">
-                    {error}
-                </Typography>
+                <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>
             )}
 
             <TextField
@@ -386,19 +413,27 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
 
             <TextField
                 label="Vader"
-                value={formData.FatherId || ''}
+                value={isLoadingFathers ? LOADING_OPTION_VALUE : (formData.FatherId || '')}
                 onChange={handleChange('FatherId')}
                 select
+                SelectProps={{ displayEmpty: true }}
                 fullWidth
                 disabled={isSaving || isLoadingFathers || !formData.PersonDateOfBirth}
                 helperText={
-                    formData.PersonDateOfBirth
+                    isLoadingFathers
+                        ? loadingText
+                        : formData.PersonDateOfBirth
                         ? 'Kies een vader (15-50 jaar ouder)'
                         : 'Vul eerst de geboortedatum in'
                 }
             >
+                {isLoadingFathers && (
+                    <MenuItem value={LOADING_OPTION_VALUE}>
+                        {loadingText}
+                    </MenuItem>
+                )}
                 <MenuItem value="">
-                    Geen selectie
+                    Vader onbekend, kies er een
                 </MenuItem>
                 {possibleFathers.map((father) => (
                     <MenuItem key={father.PossibleFatherID || father.PersonID} value={father.PossibleFatherID || father.PersonID}>
@@ -409,19 +444,27 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
 
             <TextField
                 label="Moeder"
-                value={formData.MotherId || ''}
+                value={isLoadingMothers ? LOADING_OPTION_VALUE : (formData.MotherId || '')}
                 onChange={handleChange('MotherId')}
                 select
+                SelectProps={{ displayEmpty: true }}
                 fullWidth
                 disabled={isSaving || isLoadingMothers || !formData.PersonDateOfBirth}
                 helperText={
-                    formData.PersonDateOfBirth
+                    isLoadingMothers
+                        ? loadingText
+                        : formData.PersonDateOfBirth
                         ? 'Kies een moeder (15-50 jaar ouder)'
                         : 'Vul eerst de geboortedatum in'
                 }
             >
+                {isLoadingMothers && (
+                    <MenuItem value={LOADING_OPTION_VALUE}>
+                        {loadingText}
+                    </MenuItem>
+                )}
                 <MenuItem value="">
-                    Geen selectie
+                    Moeder onbekend, kies er een
                 </MenuItem>
                 {possibleMothers.map((mother) => (
                     <MenuItem key={mother.PossibleMotherID || mother.PersonID} value={mother.PossibleMotherID || mother.PersonID}>
@@ -432,19 +475,27 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
 
             <TextField
                 label="Partner"
-                value={formData.PartnerId || ''}
+                value={isLoadingPartners ? LOADING_OPTION_VALUE : (formData.PartnerId || '')}
                 onChange={handleChange('PartnerId')}
                 select
+                SelectProps={{ displayEmpty: true }}
                 fullWidth
                 disabled={isSaving || isLoadingPartners || !formData.PersonDateOfBirth}
                 helperText={
-                    formData.PersonDateOfBirth
+                    isLoadingPartners
+                        ? loadingText
+                        : formData.PersonDateOfBirth
                         ? 'Kies een partner (max 60 jaar leeftijdsverschil)'
                         : 'Vul eerst de geboortedatum in'
                 }
             >
+                {isLoadingPartners && (
+                    <MenuItem value={LOADING_OPTION_VALUE}>
+                        {loadingText}
+                    </MenuItem>
+                )}
                 <MenuItem value="">
-                    Geen selectie
+                    Partner onbekend, kies er een
                 </MenuItem>
                 {possiblePartners.map((partner) => (
                     <MenuItem key={partner.PossiblePartnerID || partner.PersonID} value={partner.PossiblePartnerID || partner.PersonID}>

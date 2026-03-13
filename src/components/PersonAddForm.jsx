@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Box, TextField, Button, Typography, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, MenuItem } from '@mui/material';
+import { Alert, Box, TextField, Button, Typography, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, MenuItem } from '@mui/material';
+import { NO_CONNECTION_ERROR_TEXT } from '../constants/errorMessages';
 import PropTypes from 'prop-types';
 import { addPerson, getPossibleMothersBasedOnAge, getPossibleFathersBasedOnAge, getPossiblePartnersBasedOnAge, getChildren } from '../services/familyDataService';
 
@@ -100,6 +101,9 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
                 if (!isCancelled) {
                     setPossibleMothers(mothers);
                 }
+            } catch (err) {
+                console.error('Error loading possible mothers:', err);
+                if (!isCancelled) setError(NO_CONNECTION_ERROR_TEXT);
             } finally {
                 if (!isCancelled) {
                     setIsLoadingMothers(false);
@@ -153,6 +157,9 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
                 if (!isCancelled) {
                     setPossiblePartners(filteredPartners);
                 }
+            } catch (err) {
+                console.error('Error loading possible partners:', err);
+                if (!isCancelled) setError(NO_CONNECTION_ERROR_TEXT);
             } finally {
                 if (!isCancelled) {
                     setIsLoadingPartners(false);
@@ -183,6 +190,9 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
                 if (!isCancelled) {
                     setPossibleFathers(fathers);
                 }
+            } catch (err) {
+                console.error('Error loading possible fathers:', err);
+                if (!isCancelled) setError(NO_CONNECTION_ERROR_TEXT);
             } finally {
                 if (!isCancelled) {
                     setIsLoadingFathers(false);
@@ -314,9 +324,7 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
             </Typography>
 
             {error && (
-                <Typography color="error" variant="body2">
-                    {error}
-                </Typography>
+                <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>
             )}
 
             <TextField

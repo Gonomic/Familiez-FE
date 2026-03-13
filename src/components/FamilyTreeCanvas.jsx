@@ -4,6 +4,7 @@ import PersonTriangle from './PersonTriangle';
 import PersonContextMenu from './PersonContextMenu';
 import { getPersonDetails, getFather, getMother, getChildren, getPartners } from '../services/familyDataService';
 import { getPersonPortraitUrl } from '../services/familyDataService';
+import { NO_CONNECTION_ERROR_TEXT } from '../constants/errorMessages';
 
 const MIN_SCALE = 0.4;
 const MAX_SCALE = 2.5;
@@ -36,6 +37,7 @@ const FamilyTreeCanvas = ({
     const [draggingPersonId, setDraggingPersonId] = useState(null);
     const [isLoadingTree, setIsLoadingTree] = useState(false);
     const [loadingDots, setLoadingDots] = useState('');
+    const [treeLoadError, setTreeLoadError] = useState('');
     const buildRequestIdRef = useRef(0);
     // Cache voor portretfoto's
     const [photoCache, setPhotoCache] = useState(new Map());
@@ -67,10 +69,12 @@ const FamilyTreeCanvas = ({
             setSiblingsMap(new Map());
             setCanvasSize({ width: 2000, height: 2000 });
             setIsLoadingTree(false);
+            setTreeLoadError('');
             return;
         }
 
         setIsLoadingTree(true);
+        setTreeLoadError('');
 
         // Clear existing state before building new tree
         setFamilyData(new Map());
@@ -114,7 +118,33 @@ const FamilyTreeCanvas = ({
         };
 
         // Start with root person
-        await addPerson(rootPerson.PersonID, 0);
+            const rootPersonData = await addPerson(rootPerson.PersonID, 0);
+            if (!rootPersonData) {
+                throw new Error('Failed to load root person');
+            }
+
+        // Always include root partner when present.
+        const rootPartners = await getPartners(rootPerson.PersonID);
+        if (rootPartners && rootPartners.length > 0) {
+            const rootPartnerId = rootPartners[0].PersonID;
+            if (rootPartnerId) {
+                await addPerson(rootPartnerId, 0);
+
+                if (!newPartnersMap.has(rootPerson.PersonID)) {
+                    newPartnersMap.set(rootPerson.PersonID, []);
+                }
+                if (!newPartnersMap.get(rootPerson.PersonID).includes(rootPartnerId)) {
+                    newPartnersMap.get(rootPerson.PersonID).push(rootPartnerId);
+                }
+
+                if (!newPartnersMap.has(rootPartnerId)) {
+                    newPartnersMap.set(rootPartnerId, []);
+                }
+                if (!newPartnersMap.get(rootPartnerId).includes(rootPerson.PersonID)) {
+                    newPartnersMap.get(rootPartnerId).push(rootPerson.PersonID);
+                }
+            }
+        }
         
         // Get siblings of root person
         const rootFatherId = await getFather(rootPerson.PersonID);
@@ -344,6 +374,37 @@ const FamilyTreeCanvas = ({
                 await includeChildrenForParent(lastAddedParentId);
             }
 
+            // Ensure partner visibility for every loaded person (domain: 0 or 1 partner).
+            const existingPersonIds = Array.from(newFamilyData.keys());
+            for (const personId of existingPersonIds) {
+                const partners = await getPartners(personId);
+                if (!partners || partners.length === 0) {
+                    continue;
+                }
+
+                const partnerId = partners[0].PersonID;
+                if (!partnerId) {
+                    continue;
+                }
+
+                const personGeneration = newFamilyData.get(personId)?.generation ?? 0;
+                await addPerson(partnerId, personGeneration);
+
+                if (!newPartnersMap.has(personId)) {
+                    newPartnersMap.set(personId, []);
+                }
+                if (!newPartnersMap.get(personId).includes(partnerId)) {
+                    newPartnersMap.get(personId).push(partnerId);
+                }
+
+                if (!newPartnersMap.has(partnerId)) {
+                    newPartnersMap.set(partnerId, []);
+                }
+                if (!newPartnersMap.get(partnerId).includes(personId)) {
+                    newPartnersMap.get(partnerId).push(personId);
+                }
+            }
+
             // Calculate positions and canvas size
             const canvasDimensions = calculatePositions(newFamilyData, newParentsMap, newPartnersMap, newSiblingsMap, rootPerson.PersonID, newPositions);
 
@@ -404,6 +465,17 @@ const FamilyTreeCanvas = ({
                 for (let i = 0; i < maxConcurrency && queue.length > 0; i++) {
                     fetchNext();
                 }
+        } catch (error) {
+            console.error('Error while building family tree:', error);
+            if (requestId === buildRequestIdRef.current) {
+                setFamilyData(new Map());
+                setPositions(new Map());
+                setParentsMap(new Map());
+                setPartnersMap(new Map());
+                setChildrenMap(new Map());
+                setSiblingsMap(new Map());
+                setTreeLoadError(NO_CONNECTION_ERROR_TEXT);
+            }
         } finally {
             if (requestId === buildRequestIdRef.current) {
                 setIsLoadingTree(false);
@@ -1104,6 +1176,27 @@ const FamilyTreeCanvas = ({
                         </svg>
                         <div style={{ fontSize: '18px', fontWeight: 700 }}>Stamboom wordt opgebouwd{loadingDots}</div>
                     </div>
+                </div>
+            )}
+
+            {treeLoadError && !isLoadingTree && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: 16,
+                        left: 16,
+                        right: 80,
+                        zIndex: 21,
+                        background: '#fdecea',
+                        border: '1px solid #f5c2c7',
+                        color: '#842029',
+                        borderRadius: '8px',
+                        padding: '12px 14px',
+                        fontWeight: 600,
+                        boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
+                    }}
+                >
+                    {treeLoadError}
                 </div>
             )}
 
