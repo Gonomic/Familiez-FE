@@ -771,96 +771,141 @@ const FamilyTreeCanvas = ({
      * Draw connection lines
      */
     const renderConnectionLines = () => {
-        const lines = [];
-        
+        const partnerLines = [];
+        const partnerDots = [];
+        const parentChildLines = [];
+        const partnerCenters = new Map();
+
+        const getPairKey = (personAId, personBId) => {
+            const left = Math.min(personAId, personBId);
+            const right = Math.max(personAId, personBId);
+            return `${left}-${right}`;
+        };
+
+        // Partner connections (bottom points connected) and center dots
+        partnersMap.forEach((partners, personId) => {
+            const person1Pos = positions.get(personId);
+            if (!person1Pos) return;
+
+            partners.forEach(partnerId => {
+                if (personId >= partnerId) {
+                    return;
+                }
+
+                const person2Pos = positions.get(partnerId);
+                if (!person2Pos) return;
+
+                const person1BottomX = person1Pos.x;
+                const person1BottomY = person1Pos.y + TRIANGLE_HEIGHT;
+                const person2BottomX = person2Pos.x;
+                const person2BottomY = person2Pos.y + TRIANGLE_HEIGHT;
+
+                const centerX = (person1BottomX + person2BottomX) / 2;
+                const centerY = (person1BottomY + person2BottomY) / 2;
+                const pairKey = getPairKey(personId, partnerId);
+
+                partnerCenters.set(pairKey, { x: centerX, y: centerY });
+
+                partnerLines.push(
+                    <line
+                        key={`partner-${pairKey}`}
+                        x1={person1BottomX}
+                        y1={person1BottomY}
+                        x2={person2BottomX}
+                        y2={person2BottomY}
+                        stroke="#808080"
+                        strokeWidth="2"
+                    />
+                );
+
+                partnerDots.push(
+                    <circle
+                        key={`partner-dot-${pairKey}`}
+                        cx={centerX}
+                        cy={centerY}
+                        r="5"
+                        fill="#5f6368"
+                        stroke="#ffffff"
+                        strokeWidth="1"
+                    />
+                );
+            });
+        });
+
         // Parent-child connections
         parentsMap.forEach((parents, childId) => {
             const childPos = positions.get(childId);
             if (!childPos) {
                 return;
             }
-            
+
             const childTopY = childPos.y;
-            const childLeftX = childPos.x - TRIANGLE_WIDTH / 2;
-            const childRightX = childPos.x + TRIANGLE_WIDTH / 2;
+            const childTopMiddleX = childPos.x;
             const childBlueRightTopX = childPos.x - TRIANGLE_WIDTH / 2 + TRIANGLE_WIDTH * 0.1;
             const childPinkLeftTopX = childPos.x + TRIANGLE_WIDTH / 2 - TRIANGLE_WIDTH * 0.1;
-            
-            // Father connection (to right top corner of the small blue triangle)
-            if (parents.fatherId) {
-                const fatherPos = positions.get(parents.fatherId);
-                if (fatherPos) {
-                    const fatherBottomX = fatherPos.x;
-                    const fatherBottomY = fatherPos.y + TRIANGLE_HEIGHT;
-                    lines.push(
+
+            const fatherId = parents.fatherId;
+            const motherId = parents.motherId;
+            const hasFather = Boolean(fatherId && positions.get(fatherId));
+            const hasMother = Boolean(motherId && positions.get(motherId));
+
+            // When father and mother are partners, draw one line from partner center to child top middle.
+            if (hasFather && hasMother) {
+                const pairKey = getPairKey(fatherId, motherId);
+                const partnerCenter = partnerCenters.get(pairKey);
+
+                if (partnerCenter) {
+                    parentChildLines.push(
                         <line
-                            key={`father-${parents.fatherId}-${childId}`}
-                            x1={fatherBottomX}
-                            y1={fatherBottomY}
-                            x2={childBlueRightTopX}
+                            key={`parent-center-${pairKey}-${childId}`}
+                            x1={partnerCenter.x}
+                            y1={partnerCenter.y}
+                            x2={childTopMiddleX}
                             y2={childTopY}
-                            stroke="#2196F3"
+                            stroke="#666666"
                             strokeWidth="2"
                             strokeDasharray="5,5"
                         />
                     );
+                    return;
                 }
             }
-            
-            // Mother connection (to left top corner of the small pink triangle)
-            if (parents.motherId) {
-                const motherPos = positions.get(parents.motherId);
-                if (motherPos) {
-                    const motherBottomX = motherPos.x;
-                    const motherBottomY = motherPos.y + TRIANGLE_HEIGHT;
-                    lines.push(
-                        <line
-                            key={`mother-${parents.motherId}-${childId}`}
-                            x1={motherBottomX}
-                            y1={motherBottomY}
-                            x2={childPinkLeftTopX}
-                            y2={childTopY}
-                            stroke="#E91E63"
-                            strokeWidth="2"
-                            strokeDasharray="5,5"
-                        />
-                    );
-                }
+
+            // Fallback/original rendering when there is not one matching parent pair center.
+            if (hasFather) {
+                const fatherPos = positions.get(fatherId);
+                parentChildLines.push(
+                    <line
+                        key={`father-${fatherId}-${childId}`}
+                        x1={fatherPos.x}
+                        y1={fatherPos.y + TRIANGLE_HEIGHT}
+                        x2={childBlueRightTopX}
+                        y2={childTopY}
+                        stroke="#2196F3"
+                        strokeWidth="2"
+                        strokeDasharray="5,5"
+                    />
+                );
+            }
+
+            if (hasMother) {
+                const motherPos = positions.get(motherId);
+                parentChildLines.push(
+                    <line
+                        key={`mother-${motherId}-${childId}`}
+                        x1={motherPos.x}
+                        y1={motherPos.y + TRIANGLE_HEIGHT}
+                        x2={childPinkLeftTopX}
+                        y2={childTopY}
+                        stroke="#E91E63"
+                        strokeWidth="2"
+                        strokeDasharray="5,5"
+                    />
+                );
             }
         });
-        
-        // Partner connections (bottom points connected)
-        partnersMap.forEach((partners, personId) => {
-            const person1Pos = positions.get(personId);
-            if (!person1Pos) return;
-            
-            partners.forEach(partnerId => {
-                const person2Pos = positions.get(partnerId);
-                if (!person2Pos) return;
-                
-                // Only draw once per pair
-                if (personId < partnerId) {
-                    const person1BottomX = person1Pos.x;
-                    const person1BottomY = person1Pos.y + TRIANGLE_HEIGHT;
-                    const person2BottomX = person2Pos.x;
-                    const person2BottomY = person2Pos.y + TRIANGLE_HEIGHT;
-                    
-                    lines.push(
-                        <line
-                            key={`partner-${personId}-${partnerId}`}
-                            x1={person1BottomX}
-                            y1={person1BottomY}
-                            x2={person2BottomX}
-                            y2={person2BottomY}
-                            stroke="#808080"
-                            strokeWidth="2"
-                        />
-                    );
-                }
-            });
-        });
-        
-        return lines;
+
+        return [...partnerLines, ...parentChildLines, ...partnerDots];
     };
 
     // Build tree when rootPerson or generations change

@@ -271,6 +271,16 @@ const PersonTriangle = ({
                 fill="#E91E63"
                 pointerEvents="none"
             />
+            {/* Top-center anchor point for parent connection lines */}
+            <circle
+                cx={x}
+                cy={y}
+                r="4"
+                fill="#5f6368"
+                stroke="#ffffff"
+                strokeWidth="1"
+                pointerEvents="none"
+            />
             {/* Person's name - positioned near top, afgekapt */}
             <text
                 x={x}
