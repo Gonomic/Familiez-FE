@@ -21,8 +21,15 @@ const PersonTriangle = ({
     isRootPerson = false,
     isSelected = false
 }) => {
+    const NAME_TEXT_Y_OFFSET = 22;
+    const NAME_FONT_SIZE = 14;
+    const NAME_MIN_FONT_SIZE = 10;
+    const NAME_HORIZONTAL_PADDING = 2;
+
     const [isDragging, setIsDragging] = useState(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+    const [displayFullName, setDisplayFullName] = useState('');
+    const [displayNameFontSize, setDisplayNameFontSize] = useState(NAME_FONT_SIZE);
     const triangleRef = useRef(null);
 
     // Calculate triangle points (two points up, one down)
@@ -97,7 +104,7 @@ const PersonTriangle = ({
         }
     };
 
-    // Format the text to fit in triangle
+    // Fallback formatting when precise SVG measurement is not available
     const formatText = (text, maxLength = 15) => {
         if (!text) return '';
         return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
@@ -124,6 +131,98 @@ const PersonTriangle = ({
     const birthDate = person.PersonDateOfBirth || '';
     const deathDate = person.PersonDateOfDeath || '';
     const age = calculateAge();
+
+    useEffect(() => {
+        if (!fullName) {
+            setDisplayFullName('');
+            setDisplayNameFontSize(NAME_FONT_SIZE);
+            return;
+        }
+
+        const svg = triangleRef.current?.ownerSVGElement;
+        if (!svg) {
+            setDisplayFullName(formatText(fullName, 18));
+            setDisplayNameFontSize(NAME_FONT_SIZE);
+            return;
+        }
+
+        const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        textElement.setAttribute('font-size', `${NAME_FONT_SIZE}`);
+        textElement.setAttribute('font-family', 'Verdana, sans-serif');
+        textElement.setAttribute('font-weight', 'bold');
+        textElement.setAttribute('visibility', 'hidden');
+        textElement.setAttribute('x', '-9999');
+        textElement.setAttribute('y', '-9999');
+        svg.appendChild(textElement);
+
+        // Name is rendered near the top where the triangle is widest.
+        const widthAtTextY = width * (1 - (NAME_TEXT_Y_OFFSET / height));
+        const maxTextWidth = Math.max(24, widthAtTextY - (NAME_HORIZONTAL_PADDING * 2));
+
+        const measureWidth = (value, fontSize) => {
+            textElement.setAttribute('font-size', `${fontSize}`);
+            textElement.textContent = value;
+            return textElement.getComputedTextLength();
+        };
+
+        const ellipsis = '...';
+        let result = fullName;
+        let resolvedFontSize = NAME_FONT_SIZE;
+
+        for (let fontSize = NAME_FONT_SIZE; fontSize >= NAME_MIN_FONT_SIZE; fontSize -= 1) {
+            if (measureWidth(fullName, fontSize) <= maxTextWidth) {
+                resolvedFontSize = fontSize;
+                result = fullName;
+                setDisplayNameFontSize(resolvedFontSize);
+                setDisplayFullName(result);
+
+                return () => {
+                    if (textElement.parentNode) {
+                        textElement.parentNode.removeChild(textElement);
+                    }
+                };
+            }
+        }
+
+        resolvedFontSize = NAME_MIN_FONT_SIZE;
+
+        if (measureWidth(fullName, resolvedFontSize) > maxTextWidth) {
+            let low = 0;
+            let high = fullName.length;
+            let best = '';
+
+            while (low <= high) {
+                const mid = Math.floor((low + high) / 2);
+                const candidate = fullName.slice(0, mid).trimEnd() + ellipsis;
+
+                if (measureWidth(candidate, resolvedFontSize) <= maxTextWidth) {
+                    best = candidate;
+                    low = mid + 1;
+                } else {
+                    high = mid - 1;
+                }
+            }
+
+            result = best || ellipsis;
+        }
+
+        setDisplayNameFontSize(resolvedFontSize);
+        setDisplayFullName(result);
+
+        return () => {
+            if (textElement.parentNode) {
+                textElement.parentNode.removeChild(textElement);
+            }
+        };
+    }, [
+        fullName,
+        width,
+        height,
+        NAME_TEXT_Y_OFFSET,
+        NAME_FONT_SIZE,
+        NAME_MIN_FONT_SIZE,
+        NAME_HORIZONTAL_PADDING,
+    ]);
     
     // Determine gender color (blue for male, pink for female)
     const genderColor = person.PersonIsMale ? '#2196F3' : '#E91E63';
@@ -175,15 +274,15 @@ const PersonTriangle = ({
             {/* Person's name - positioned near top, afgekapt */}
             <text
                 x={x}
-                y={y + 22}
+                y={y + NAME_TEXT_Y_OFFSET}
                 textAnchor="middle"
                 fill="#1976d2"
-                fontSize="14"
+                fontSize={displayNameFontSize}
                 fontFamily="Verdana, sans-serif"
                 fontWeight="bold"
                 pointerEvents="none"
             >
-                {formatText(fullName, 18)}
+                {displayFullName}
             </text>
             {/* Birth date - positioned onder naam */}
             <text

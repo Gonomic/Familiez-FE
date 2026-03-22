@@ -79,7 +79,7 @@ const PersonContextMenu = ({
                         Persoon verwijderen
                     </MenuItem>
                     <MenuItem onClick={handleAddClick}>
-                        Persoon toevoegen
+                        Kind toevoegen
                     </MenuItem>
                 </>
             )}
