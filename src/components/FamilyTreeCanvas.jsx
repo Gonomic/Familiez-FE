@@ -8,6 +8,7 @@ import { NO_CONNECTION_ERROR_TEXT } from '../constants/errorMessages';
 
 const MIN_SCALE = 0.4;
 const MAX_SCALE = 2.5;
+const SHOW_NON_PARTNER_PARENTS_KEY = 'familiez_show_non_partner_parents';
 
 /**
  * FamilyTreeCanvas Component
@@ -37,6 +38,9 @@ const FamilyTreeCanvas = ({
     const [isLoadingTree, setIsLoadingTree] = useState(false);
     const [loadingDots, setLoadingDots] = useState('');
     const [treeLoadError, setTreeLoadError] = useState('');
+    const [showNonPartnerParents, setShowNonPartnerParents] = useState(
+        () => localStorage.getItem(SHOW_NON_PARTNER_PARENTS_KEY) === 'true'
+    );
     const buildRequestIdRef = useRef(0);
     // Cache voor portretfoto's
     // Pan/zoom state
@@ -53,6 +57,27 @@ const FamilyTreeCanvas = ({
         const COUPLE_WIDTH = TRIANGLE_WIDTH + PARTNER_CENTER_DISTANCE;
         const HORIZONTAL_GAP = TRIANGLE_WIDTH;
         const VERTICAL_GAP = TRIANGLE_HEIGHT * 2;
+
+    useEffect(() => {
+        const syncSetting = () => {
+            setShowNonPartnerParents(localStorage.getItem(SHOW_NON_PARTNER_PARENTS_KEY) === 'true');
+        };
+
+        const handleSettingsEvent = (event) => {
+            if (event?.detail && typeof event.detail.showNonPartnerParents === 'boolean') {
+                setShowNonPartnerParents(event.detail.showNonPartnerParents);
+                return;
+            }
+            syncSetting();
+        };
+
+        window.addEventListener('familiez-system-settings-updated', handleSettingsEvent);
+        window.addEventListener('storage', syncSetting);
+        return () => {
+            window.removeEventListener('familiez-system-settings-updated', handleSettingsEvent);
+            window.removeEventListener('storage', syncSetting);
+        };
+    }, []);
 
     /**
      * Build the family tree data structure
@@ -257,11 +282,39 @@ const FamilyTreeCanvas = ({
             }
         };
 
+        const mergeUniqueChildren = (left, right) => {
+            const merged = new Map();
+            (left || []).forEach(child => {
+                if (child?.PersonID) {
+                    merged.set(child.PersonID, child);
+                }
+            });
+            (right || []).forEach(child => {
+                if (child?.PersonID) {
+                    merged.set(child.PersonID, child);
+                }
+            });
+            return Array.from(merged.values());
+        };
+
+        const getCombinedChildrenForPerson = async (personId) => {
+            const baseChildren = await getChildren(personId);
+            const currentPartners = newPartnersMap.get(personId) || [];
+            const partnerId = currentPartners[0] || null;
+
+            if (!partnerId) {
+                return baseChildren || [];
+            }
+
+            const partnerChildren = await getChildren(partnerId);
+            return mergeUniqueChildren(baseChildren || [], partnerChildren || []);
+        };
+
         // Build downward (children)
         const buildDownward = async (personId, depth) => {
             if (depth >= nbrOfChildGenerations) return;
             
-            const childrenData = await getChildren(personId);
+            const childrenData = await getCombinedChildrenForPerson(personId);
             
             if (childrenData && childrenData.length > 0) {
                 const childIds = childrenData.map(child => child.PersonID);
@@ -280,17 +333,37 @@ const FamilyTreeCanvas = ({
                         fatherId: childFatherId || null,
                         motherId: childMotherId || null
                     });
+
+                    const childParentsArePartners = Boolean(
+                        childFatherId && childMotherId && await arePartners(childFatherId, childMotherId)
+                    );
+
+                    const includeFatherNode = Boolean(
+                        childFatherId && (
+                            showNonPartnerParents ||
+                            childParentsArePartners ||
+                            childFatherId === personId
+                        )
+                    );
+
+                    const includeMotherNode = Boolean(
+                        childMotherId && (
+                            showNonPartnerParents ||
+                            childParentsArePartners ||
+                            childMotherId === personId
+                        )
+                    );
                     
                     // If we haven't added the parents yet, add them
-                    if (childFatherId && !newFamilyData.has(childFatherId)) {
+                    if (includeFatherNode && !newFamilyData.has(childFatherId)) {
                         await addPerson(childFatherId, -depth);
                     }
-                    if (childMotherId && !newFamilyData.has(childMotherId)) {
+                    if (includeMotherNode && !newFamilyData.has(childMotherId)) {
                         await addPerson(childMotherId, -depth);
                     }
                     
                     // Only set partners when DB confirms the relationship
-                    if (childFatherId && childMotherId && await arePartners(childFatherId, childMotherId)) {
+                    if (childParentsArePartners) {
                         if (!newPartnersMap.has(childFatherId)) {
                             newPartnersMap.set(childFatherId, []);
                         }
@@ -315,7 +388,7 @@ const FamilyTreeCanvas = ({
             const parentData = newFamilyData.get(parentId);
             if (!parentData) return;
 
-            const childrenData = await getChildren(parentId);
+            const childrenData = await getCombinedChildrenForPerson(parentId);
             if (!childrenData || childrenData.length === 0) return;
 
             const childIds = childrenData.map(child => child.PersonID);
@@ -333,14 +406,34 @@ const FamilyTreeCanvas = ({
                     motherId: childMotherId || null
                 });
 
-                if (childFatherId && !newFamilyData.has(childFatherId)) {
+                const childParentsArePartners = Boolean(
+                    childFatherId && childMotherId && await arePartners(childFatherId, childMotherId)
+                );
+
+                const includeFatherNode = Boolean(
+                    childFatherId && (
+                        showNonPartnerParents ||
+                        childParentsArePartners ||
+                        childFatherId === parentId
+                    )
+                );
+
+                const includeMotherNode = Boolean(
+                    childMotherId && (
+                        showNonPartnerParents ||
+                        childParentsArePartners ||
+                        childMotherId === parentId
+                    )
+                );
+
+                if (includeFatherNode && !newFamilyData.has(childFatherId)) {
                     await addPerson(childFatherId, childGeneration + 1);
                 }
-                if (childMotherId && !newFamilyData.has(childMotherId)) {
+                if (includeMotherNode && !newFamilyData.has(childMotherId)) {
                     await addPerson(childMotherId, childGeneration + 1);
                 }
 
-                if (childFatherId && childMotherId && await arePartners(childFatherId, childMotherId)) {
+                if (childParentsArePartners) {
                     if (!newPartnersMap.has(childFatherId)) {
                         newPartnersMap.set(childFatherId, []);
                     }
@@ -471,7 +564,7 @@ const FamilyTreeCanvas = ({
         }
     // calculatePositions is a stable in-component helper for this callback scope.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [rootPersonId, nbrOfParentGenerations, nbrOfChildGenerations, treeRefreshTrigger, lastAddedParentId]);
+    }, [rootPersonId, nbrOfParentGenerations, nbrOfChildGenerations, treeRefreshTrigger, lastAddedParentId, showNonPartnerParents]);
 
     /**
      * Calculate positions for all persons
