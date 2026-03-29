@@ -16,14 +16,20 @@ import { useEffect, useState } from 'react';
 
 import { initiateSSOLogout, getStoredToken, stopSessionKeepalive } from './services/authService';
 
+const hasAuthState = () => {
+    const token = Boolean(getStoredToken());
+    const roleData = localStorage.getItem('familiez_user_role');
+    return token || Boolean(roleData);
+};
+
 const icons = [<CreateIcon key="create" />, <PermDeviceInformationIcon key="info" />, <SettingsSuggestIcon key="settings" />];
 
 function LeftDrawer({ open, onClose }) {
     const navigate = useNavigate();
-    const [isAuthenticated, setIsAuthenticated] = useState(Boolean(getStoredToken()));
+    const [isAuthenticated, setIsAuthenticated] = useState(hasAuthState());
 
     useEffect(() => {
-        const updateAuth = () => setIsAuthenticated(Boolean(getStoredToken()));
+        const updateAuth = () => setIsAuthenticated(hasAuthState());
         updateAuth();
         window.addEventListener('familiez-auth-updated', updateAuth);
         window.addEventListener('storage', updateAuth);

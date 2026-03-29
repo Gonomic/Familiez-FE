@@ -228,6 +228,44 @@ export const exchangeCodeForToken = async (code, state) => {
 
 export const getStoredToken = () => localStorage.getItem(STORAGE_TOKEN_KEY);
 
+export const hasServerSession = async () => {
+  const { apiBaseUrl } = getAuthConfig();
+  if (!apiBaseUrl) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/auth/me`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const data = await response.json();
+    if (!data?.username) {
+      return false;
+    }
+
+    // Cache role/user data locally so UI can render identity even without JWT in localStorage.
+    localStorage.setItem(STORAGE_USER_ROLE_KEY, JSON.stringify({
+      username: data.username,
+      role: data.role || 'none',
+      is_admin: Boolean(data.is_admin),
+      is_user: Boolean(data.is_user),
+      groups: data.groups || [],
+    }));
+
+    notifyAuthChange();
+    return true;
+  } catch (error) {
+    console.warn('[authService] Session check failed:', error);
+    return false;
+  }
+};
+
 export const clearStoredToken = () => {
   localStorage.removeItem(STORAGE_TOKEN_KEY);
   localStorage.removeItem(STORAGE_USER_ROLE_KEY);
@@ -373,9 +411,31 @@ export const decodeToken = (token) => {
 
 export const getUserInfo = () => {
   const token = getStoredToken();
+  const roleData = localStorage.getItem(STORAGE_USER_ROLE_KEY);
+
   if (!token) {
-    return null;
+    if (!roleData) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(roleData);
+      return {
+        username: parsed.username || '',
+        given_name: '',
+        family_name: '',
+        name: parsed.username || '',
+        email: '',
+        role: parsed.role || 'none',
+        is_admin: Boolean(parsed.is_admin),
+        is_user: Boolean(parsed.is_user),
+      };
+    } catch (err) {
+      console.warn('Failed to parse role data:', err);
+      return null;
+    }
   }
+
   const decoded = decodeToken(token);
   if (!decoded) {
     return null;
@@ -388,7 +448,6 @@ export const getUserInfo = () => {
   }
   
   // Get role info from localStorage (set by fetchUserRole)
-  const roleData = localStorage.getItem(STORAGE_USER_ROLE_KEY);
   let role = 'none';
   let is_admin = false;
   let is_user = false;
@@ -425,15 +484,17 @@ export const fetchUserRole = async () => {
   const { apiBaseUrl } = getAuthConfig();
   const token = getStoredToken();
   
-  if (!apiBaseUrl || !token) {
-    console.warn('[authService] Cannot fetch user role: missing API base URL or token');
+  if (!apiBaseUrl) {
+    console.warn('[authService] Cannot fetch user role: missing API base URL');
     return null;
   }
   
   try {
+    const headers = token ? setAuthHeader(token) : {};
     const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/auth/me`, {
       method: 'GET',
-      headers: setAuthHeader(token),
+      headers,
+      credentials: 'include',
     });
     
     if (!response.ok) {

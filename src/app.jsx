@@ -11,16 +11,40 @@ import FamiliezInfo from './FamiliezInfo';
 import FamiliezSysteem from './FamiliezSysteem';
 import LoginPage from './pages/LoginPage';
 import AuthCallback from './pages/AuthCallback';
-import { getStoredToken, initiateSSOLogin } from './services/authService';
+import { getStoredToken, hasServerSession, startSessionKeepalive } from './services/authService';
 
 const RequireAuth = ({ children }) => {
-  const [hasToken, setHasToken] = useState(Boolean(getStoredToken()));
+  const [hasToken, setHasToken] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [authError, setAuthError] = useState('');
   const [showError, setShowError] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const updateAuth = () => setHasToken(Boolean(getStoredToken()));
+    let isMounted = true;
+
+    const updateAuth = async () => {
+      const hasStoredToken = Boolean(getStoredToken());
+      if (hasStoredToken) {
+        if (isMounted) {
+          setHasToken(true);
+          setAuthChecked(true);
+        }
+        return;
+      }
+
+      const hasSession = await hasServerSession();
+      if (!isMounted) {
+        return;
+      }
+
+      setHasToken(hasSession);
+      setAuthChecked(true);
+
+      if (hasSession) {
+        startSessionKeepalive();
+      }
+    };
     
     // Handle auth errors (expired token, etc)
     const handleAuthError = (event) => {
@@ -41,6 +65,7 @@ const RequireAuth = ({ children }) => {
     window.addEventListener('familiez-auth-error', handleAuthError);
     
     return () => {
+      isMounted = false;
       window.removeEventListener('familiez-auth-updated', updateAuth);
       window.removeEventListener('storage', updateAuth);
       window.removeEventListener('familiez-auth-error', handleAuthError);
@@ -49,14 +74,18 @@ const RequireAuth = ({ children }) => {
 
   // If no token, redirect to login page
   useEffect(() => {
-    if (!hasToken && !showError) {
+    if (authChecked && !hasToken && !showError) {
       navigate('/');
     }
-  }, [hasToken, navigate, showError]);
+  }, [authChecked, hasToken, navigate, showError]);
 
   const handleCloseError = () => {
     setShowError(false);
   };
+
+  if (!authChecked) {
+    return <div>Checking session...</div>;
+  }
 
   if (!hasToken) {
     return (
