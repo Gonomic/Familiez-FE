@@ -46,6 +46,7 @@ const FamilyTreeCanvas = ({
     const [isPanning, setIsPanning] = useState(false);
     const panStartRef = useRef({ x: 0, y: 0 });
     const svgRef = useRef(null);
+    const hasAutoCenteredRef = useRef(false);
 
     // Layout constants
         const TRIANGLE_WIDTH = Math.round(120 * 1.3); // 156
@@ -1053,9 +1054,51 @@ const FamilyTreeCanvas = ({
         setIsPanning(false);
     }, []);
 
+    // Reset auto-center flag when root person changes
+    useEffect(() => {
+        hasAutoCenteredRef.current = false;
+    }, [rootPerson]);
+
+    // Auto-center on root person when tree first loads
+    useEffect(() => {
+        if (!hasAutoCenteredRef.current && positions.size > 0 && rootPerson) {
+            const rootPos = positions.get(rootPerson.PersonID);
+            const svgEl = svgRef.current;
+            if (rootPos && svgEl) {
+                const { width: svgWidth, height: svgHeight } = svgEl.getBoundingClientRect();
+                setViewport({
+                    scale: 1,
+                    translateX: svgWidth / 2 - rootPos.x - TRIANGLE_WIDTH / 2,
+                    translateY: svgHeight / 2 - rootPos.y - TRIANGLE_HEIGHT / 2
+                });
+                hasAutoCenteredRef.current = true;
+            }
+        }
+    }, [positions, rootPerson, TRIANGLE_WIDTH, TRIANGLE_HEIGHT]);
+
+    // Attach wheel listener as non-passive so preventDefault() works.
+    // Include rootPerson in deps so the effect re-runs when the SVG enters the DOM.
+    useEffect(() => {
+        const svgEl = svgRef.current;
+        if (!svgEl) return;
+        svgEl.addEventListener('wheel', handleCanvasWheel, { passive: false });
+        return () => svgEl.removeEventListener('wheel', handleCanvasWheel);
+    }, [handleCanvasWheel, rootPerson]);
+
     const resetViewport = useCallback(() => {
-        setViewport({ scale: 1, translateX: 0, translateY: 0 });
-    }, []);
+        const rootPos = positions.get(rootPerson?.PersonID);
+        const svgEl = svgRef.current;
+        if (rootPos && svgEl) {
+            const { width: svgWidth, height: svgHeight } = svgEl.getBoundingClientRect();
+            setViewport({
+                scale: 1,
+                translateX: svgWidth / 2 - rootPos.x - TRIANGLE_WIDTH / 2,
+                translateY: svgHeight / 2 - rootPos.y - TRIANGLE_HEIGHT / 2
+            });
+        } else {
+            setViewport({ scale: 1, translateX: 0, translateY: 0 });
+        }
+    }, [positions, rootPerson, TRIANGLE_WIDTH, TRIANGLE_HEIGHT]);
 
     if (!rootPerson) {
         return (
@@ -1134,7 +1177,6 @@ const FamilyTreeCanvas = ({
                     cursor: isPanning ? 'grabbing' : 'grab',
                     userSelect: 'none'
                 }}
-                onWheel={handleCanvasWheel}
                 onMouseDown={handleCanvasMouseDown}
                 onMouseMove={handleCanvasMouseMove}
                 onMouseUp={stopPanning}
