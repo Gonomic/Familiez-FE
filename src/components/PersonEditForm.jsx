@@ -38,6 +38,33 @@ const hasInvalidChars = (text) => {
     return !validPattern.test(text);
 };
 
+const formatBirthDate = (value) => {
+    if (!value) return 'onbekend';
+
+    const normalizedValue = typeof value === 'string'
+        ? value.replace(/[()]/g, '').trim()
+        : value;
+
+    const date = new Date(normalizedValue);
+    if (Number.isNaN(date.getTime())) {
+        return 'onbekend';
+    }
+
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+
+    return `${day}-${month}-${year}`;
+};
+
+const buildPicklistLabel = (person, relationKey) => {
+    const relationName = person?.[relationKey];
+    const fallbackName = `${person?.PersonGivvenName || ''} ${person?.PersonFamilyName || ''}`.trim();
+    const name = relationName || fallbackName;
+
+    return `${name} (${formatBirthDate(person?.PersonDateOfBirth)})`;
+};
+
 /**
  * PersonEditForm Component
  * Form for editing person details in the right drawer
@@ -437,7 +464,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 </MenuItem>
                 {possibleFathers.map((father) => (
                     <MenuItem key={father.PossibleFatherID || father.PersonID} value={father.PossibleFatherID || father.PersonID}>
-                        {father.PossibleFather || `${father.PersonGivvenName || ''} ${father.PersonFamilyName || ''}`.trim()}
+                        {buildPicklistLabel(father, 'PossibleFather')}
                     </MenuItem>
                 ))}
             </TextField>
@@ -468,7 +495,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 </MenuItem>
                 {possibleMothers.map((mother) => (
                     <MenuItem key={mother.PossibleMotherID || mother.PersonID} value={mother.PossibleMotherID || mother.PersonID}>
-                        {mother.PossibleMother || `${mother.PersonGivvenName || ''} ${mother.PersonFamilyName || ''}`.trim()}
+                        {buildPicklistLabel(mother, 'PossibleMother')}
                     </MenuItem>
                 ))}
             </TextField>
@@ -499,7 +526,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 </MenuItem>
                 {possiblePartners.map((partner) => (
                     <MenuItem key={partner.PossiblePartnerID || partner.PersonID} value={partner.PossiblePartnerID || partner.PersonID}>
-                        {partner.PossiblePartner || `${partner.PersonGivvenName || ''} ${partner.PersonFamilyName || ''}`.trim()}
+                        {buildPicklistLabel(partner, 'PossiblePartner')}
                     </MenuItem>
                 ))}
             </TextField>
