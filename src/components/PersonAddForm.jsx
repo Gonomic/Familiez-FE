@@ -126,7 +126,30 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
             try {
                 const mothers = await getPossibleMothersBasedOnAge(formData.PersonDateOfBirth);
                 if (!isCancelled) {
-                    setPossibleMothers(mothers);
+                    setPossibleMothers((prevMothers) => {
+                        if (!formData.MotherId) {
+                            return mothers;
+                        }
+
+                        const selectedMotherId = Number(formData.MotherId);
+                        const hasSelectedMother = mothers.some((mother) => {
+                            const motherId = mother.PossibleMotherID || mother.PersonID;
+                            return Number(motherId) === selectedMotherId;
+                        });
+
+                        if (hasSelectedMother) {
+                            return mothers;
+                        }
+
+                        const selectedFromPreviousList = prevMothers.find((mother) => {
+                            const motherId = mother.PossibleMotherID || mother.PersonID;
+                            return Number(motherId) === selectedMotherId;
+                        });
+
+                        return selectedFromPreviousList
+                            ? [selectedFromPreviousList, ...mothers]
+                            : mothers;
+                    });
                 }
             } catch (err) {
                 console.error('Error loading possible mothers:', err);
@@ -143,7 +166,7 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
         return () => {
             isCancelled = true;
         };
-    }, [parentPerson, formData.PersonDateOfBirth]);
+    }, [parentPerson, formData.PersonDateOfBirth, formData.MotherId]);
 
     useEffect(() => {
         if (!formData.PersonDateOfBirth) {
@@ -181,8 +204,28 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
                     return Math.abs(partnerYear - birthYear) <= 60;
                 });
 
+                let mergedPartners = filteredPartners;
+                if (formData.PartnerId) {
+                    const selectedPartnerId = Number(formData.PartnerId);
+                    const hasSelectedPartner = filteredPartners.some((partner) => {
+                        const partnerId = partner.PossiblePartnerID || partner.PersonID;
+                        return Number(partnerId) === selectedPartnerId;
+                    });
+
+                    if (!hasSelectedPartner) {
+                        const selectedFromRawList = partners.find((partner) => {
+                            const partnerId = partner.PossiblePartnerID || partner.PersonID;
+                            return Number(partnerId) === selectedPartnerId;
+                        });
+
+                        if (selectedFromRawList) {
+                            mergedPartners = [selectedFromRawList, ...filteredPartners];
+                        }
+                    }
+                }
+
                 if (!isCancelled) {
-                    setPossiblePartners(filteredPartners);
+                    setPossiblePartners(mergedPartners);
                 }
             } catch (err) {
                 console.error('Error loading possible partners:', err);
@@ -199,7 +242,7 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
         return () => {
             isCancelled = true;
         };
-    }, [formData.PersonDateOfBirth, formData.FatherId, formData.MotherId]);
+    }, [formData.PersonDateOfBirth, formData.FatherId, formData.MotherId, formData.PartnerId]);
 
     useEffect(() => {
         const isMother = parentPerson && (parentPerson.PersonIsMale === false || parentPerson.PersonIsMale === 0);
@@ -215,7 +258,30 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
             try {
                 const fathers = await getPossibleFathersBasedOnAge(formData.PersonDateOfBirth);
                 if (!isCancelled) {
-                    setPossibleFathers(fathers);
+                    setPossibleFathers((prevFathers) => {
+                        if (!formData.FatherId) {
+                            return fathers;
+                        }
+
+                        const selectedFatherId = Number(formData.FatherId);
+                        const hasSelectedFather = fathers.some((father) => {
+                            const fatherId = father.PossibleFatherID || father.PersonID;
+                            return Number(fatherId) === selectedFatherId;
+                        });
+
+                        if (hasSelectedFather) {
+                            return fathers;
+                        }
+
+                        const selectedFromPreviousList = prevFathers.find((father) => {
+                            const fatherId = father.PossibleFatherID || father.PersonID;
+                            return Number(fatherId) === selectedFatherId;
+                        });
+
+                        return selectedFromPreviousList
+                            ? [selectedFromPreviousList, ...fathers]
+                            : fathers;
+                    });
                 }
             } catch (err) {
                 console.error('Error loading possible fathers:', err);
@@ -232,7 +298,7 @@ const PersonAddForm = ({ parentPerson, onAdd, onCancel }) => {
         return () => {
             isCancelled = true;
         };
-    }, [parentPerson, formData.PersonDateOfBirth]);
+    }, [parentPerson, formData.PersonDateOfBirth, formData.FatherId]);
 
     const handleChange = (field) => (event) => {
         let value = event.target.value;

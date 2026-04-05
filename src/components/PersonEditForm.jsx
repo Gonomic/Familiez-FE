@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Alert, Box, TextField, Button, Typography, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, MenuItem } from '@mui/material';
 import { NO_CONNECTION_ERROR_TEXT } from '../constants/errorMessages';
 import PropTypes from 'prop-types';
-import { updatePerson, getPossibleMothersBasedOnAge, getPossibleFathersBasedOnAge, getPossiblePartnersBasedOnAge, getFather, getMother, getPartners, getChildren } from '../services/familyDataService';
+import { updatePerson, getPossibleMothersBasedOnAge, getPossibleFathersBasedOnAge, getPossiblePartnersBasedOnAge, getFather, getMother, getPartners, getChildren, getPersonDetails } from '../services/familyDataService';
 
 /**
  * Normalize input text by replacing special characters with standard equivalents
@@ -89,8 +89,11 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
     const [isLoadingMothers, setIsLoadingMothers] = useState(false);
     const [possibleFathers, setPossibleFathers] = useState([]);
     const [isLoadingFathers, setIsLoadingFathers] = useState(false);
+    const [currentFatherOption, setCurrentFatherOption] = useState(null);
+    const [currentMotherOption, setCurrentMotherOption] = useState(null);
     const [possiblePartners, setPossiblePartners] = useState([]);
     const [isLoadingPartners, setIsLoadingPartners] = useState(false);
+    const [currentPartnerOption, setCurrentPartnerOption] = useState(null);
     const [loadingDots, setLoadingDots] = useState(1);
 
     useEffect(() => {
@@ -110,6 +113,9 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
     // Load person data and current relations
     useEffect(() => {
         if (person) {
+            setCurrentFatherOption(null);
+            setCurrentMotherOption(null);
+            setCurrentPartnerOption(null);
             setFormData({
                 PersonGivvenName: person.PersonGivvenName || '',
                 PersonFamilyName: person.PersonFamilyName || '',
@@ -132,12 +138,21 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                         getPartners(person.PersonID, { throwOnError: true })
                     ]);
 
+                    const [fatherDetails, motherDetails] = await Promise.all([
+                        fatherId ? getPersonDetails(fatherId, { throwOnError: true }) : Promise.resolve(null),
+                        motherId ? getPersonDetails(motherId, { throwOnError: true }) : Promise.resolve(null),
+                    ]);
+
                     setFormData(prev => ({
                         ...prev,
                         FatherId: fatherId || null,
                         MotherId: motherId || null,
                         PartnerId: partners && partners.length > 0 ? partners[0].PersonID : null
                     }));
+
+                    setCurrentFatherOption(fatherDetails || null);
+                    setCurrentMotherOption(motherDetails || null);
+                    setCurrentPartnerOption(partners && partners.length > 0 ? partners[0] : null);
                 } catch (err) {
                     console.error('Error loading relations:', err);
                     setError(NO_CONNECTION_ERROR_TEXT);
@@ -160,8 +175,28 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
             setIsLoadingMothers(true);
             try {
                 const mothers = await getPossibleMothersBasedOnAge(formData.PersonDateOfBirth, { throwOnError: true });
+
+                let mergedMothers = mothers;
+                if (formData.MotherId && currentMotherOption?.PersonID) {
+                    const selectedMotherId = Number(formData.MotherId);
+                    const hasSelectedMother = mothers.some((mother) => {
+                        const motherId = mother.PossibleMotherID || mother.PersonID;
+                        return Number(motherId) === selectedMotherId;
+                    });
+
+                    if (!hasSelectedMother && Number(currentMotherOption.PersonID) === selectedMotherId) {
+                        const currentMotherAsOption = {
+                            ...currentMotherOption,
+                            PossibleMotherID: currentMotherOption.PersonID,
+                            PossibleMother: `${currentMotherOption.PersonGivvenName || ''} ${currentMotherOption.PersonFamilyName || ''}`.trim(),
+                            SortDate: currentMotherOption.PersonDateOfBirth || null,
+                        };
+                        mergedMothers = [currentMotherAsOption, ...mothers];
+                    }
+                }
+
                 if (!isCancelled) {
-                    setPossibleMothers(mothers);
+                    setPossibleMothers(mergedMothers);
                 }
             } catch (err) {
                 console.error('Error loading possible mothers:', err);
@@ -178,7 +213,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
         return () => {
             isCancelled = true;
         };
-    }, [formData.PersonDateOfBirth]);
+    }, [formData.PersonDateOfBirth, formData.MotherId, currentMotherOption]);
 
     // Fetch possible fathers based on birth date
     useEffect(() => {
@@ -192,8 +227,28 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
             setIsLoadingFathers(true);
             try {
                 const fathers = await getPossibleFathersBasedOnAge(formData.PersonDateOfBirth, { throwOnError: true });
+
+                let mergedFathers = fathers;
+                if (formData.FatherId && currentFatherOption?.PersonID) {
+                    const selectedFatherId = Number(formData.FatherId);
+                    const hasSelectedFather = fathers.some((father) => {
+                        const fatherId = father.PossibleFatherID || father.PersonID;
+                        return Number(fatherId) === selectedFatherId;
+                    });
+
+                    if (!hasSelectedFather && Number(currentFatherOption.PersonID) === selectedFatherId) {
+                        const currentFatherAsOption = {
+                            ...currentFatherOption,
+                            PossibleFatherID: currentFatherOption.PersonID,
+                            PossibleFather: `${currentFatherOption.PersonGivvenName || ''} ${currentFatherOption.PersonFamilyName || ''}`.trim(),
+                            SortDate: currentFatherOption.PersonDateOfBirth || null,
+                        };
+                        mergedFathers = [currentFatherAsOption, ...fathers];
+                    }
+                }
+
                 if (!isCancelled) {
-                    setPossibleFathers(fathers);
+                    setPossibleFathers(mergedFathers);
                 }
             } catch (err) {
                 console.error('Error loading possible fathers:', err);
@@ -210,7 +265,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
         return () => {
             isCancelled = true;
         };
-    }, [formData.PersonDateOfBirth]);
+    }, [formData.PersonDateOfBirth, formData.FatherId, currentFatherOption]);
 
     // Fetch possible partners based on birth date
     useEffect(() => {
@@ -249,8 +304,26 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                     return Math.abs(partnerYear - birthYear) <= 60;
                 });
 
+                let mergedPartners = filteredPartners;
+                if (currentPartnerOption?.PersonID) {
+                    const hasCurrentPartner = filteredPartners.some((partner) => {
+                        const partnerId = partner.PossiblePartnerID || partner.PersonID;
+                        return partnerId === currentPartnerOption.PersonID;
+                    });
+
+                    if (!hasCurrentPartner) {
+                        const currentPartnerAsOption = {
+                            ...currentPartnerOption,
+                            PossiblePartnerID: currentPartnerOption.PersonID,
+                            PossiblePartner: `${currentPartnerOption.PersonGivvenName || ''} ${currentPartnerOption.PersonFamilyName || ''}`.trim(),
+                            SortDate: currentPartnerOption.PersonDateOfBirth || null,
+                        };
+                        mergedPartners = [currentPartnerAsOption, ...filteredPartners];
+                    }
+                }
+
                 if (!isCancelled) {
-                    setPossiblePartners(filteredPartners);
+                    setPossiblePartners(mergedPartners);
                 }
             } catch (err) {
                 console.error('Error loading possible partners:', err);
@@ -267,7 +340,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
         return () => {
             isCancelled = true;
         };
-    }, [formData.PersonDateOfBirth, formData.FatherId, formData.MotherId, person]);
+    }, [formData.PersonDateOfBirth, formData.FatherId, formData.MotherId, person, currentPartnerOption]);
 
     const handleChange = (field) => (event) => {
         let value = event.target.value;

@@ -1399,22 +1399,62 @@ const FamilyTreeCanvas = ({
         hasAutoCenteredRef.current = false;
     }, [rootPersonId]);
 
+    const centerOnRoot = useCallback(() => {
+        const rootPos = positions.get(rootPersonId);
+        const svgEl = svgRef.current;
+        if (!rootPos || !svgEl) {
+            return false;
+        }
+
+        const { width: svgWidth, height: svgHeight } = svgEl.getBoundingClientRect();
+        if (!svgWidth || !svgHeight) {
+            return false;
+        }
+
+        setViewport({
+            scale: 1,
+            translateX: svgWidth / 2 - rootPos.x - TRIANGLE_WIDTH / 2,
+            translateY: svgHeight / 2 - rootPos.y - TRIANGLE_HEIGHT / 2
+        });
+
+        return true;
+    }, [positions, rootPersonId, TRIANGLE_WIDTH, TRIANGLE_HEIGHT]);
+
     // Auto-center on root person when tree first loads
     useEffect(() => {
-        if (!hasAutoCenteredRef.current && positions.size > 0 && rootPersonId) {
-            const rootPos = positions.get(rootPersonId);
-            const svgEl = svgRef.current;
-            if (rootPos && svgEl) {
-                const { width: svgWidth, height: svgHeight } = svgEl.getBoundingClientRect();
-                setViewport({
-                    scale: 1,
-                    translateX: svgWidth / 2 - rootPos.x - TRIANGLE_WIDTH / 2,
-                    translateY: svgHeight / 2 - rootPos.y - TRIANGLE_HEIGHT / 2
-                });
-                hasAutoCenteredRef.current = true;
-            }
+        if (hasAutoCenteredRef.current || positions.size === 0 || !rootPersonId) {
+            return undefined;
         }
-    }, [positions, rootPersonId, TRIANGLE_WIDTH, TRIANGLE_HEIGHT]);
+
+        // In VS Code embedded browser the svg can report 0x0 briefly during layout.
+        // Retry a few animation frames so first render still centers correctly.
+        let attemptsLeft = 6;
+        let rafId = null;
+
+        const tryCenter = () => {
+            if (hasAutoCenteredRef.current) {
+                return;
+            }
+
+            if (centerOnRoot()) {
+                hasAutoCenteredRef.current = true;
+                return;
+            }
+
+            attemptsLeft -= 1;
+            if (attemptsLeft > 0) {
+                rafId = window.requestAnimationFrame(tryCenter);
+            }
+        };
+
+        tryCenter();
+
+        return () => {
+            if (rafId) {
+                window.cancelAnimationFrame(rafId);
+            }
+        };
+    }, [positions, rootPersonId, centerOnRoot]);
 
     // Attach wheel listener as non-passive so preventDefault() works.
     // Include rootPerson in deps so the effect re-runs when the SVG enters the DOM.
@@ -1426,19 +1466,10 @@ const FamilyTreeCanvas = ({
     }, [handleCanvasWheel, rootPersonId]);
 
     const resetViewport = useCallback(() => {
-        const rootPos = positions.get(rootPersonId);
-        const svgEl = svgRef.current;
-        if (rootPos && svgEl) {
-            const { width: svgWidth, height: svgHeight } = svgEl.getBoundingClientRect();
-            setViewport({
-                scale: 1,
-                translateX: svgWidth / 2 - rootPos.x - TRIANGLE_WIDTH / 2,
-                translateY: svgHeight / 2 - rootPos.y - TRIANGLE_HEIGHT / 2
-            });
-        } else {
+        if (!centerOnRoot()) {
             setViewport({ scale: 1, translateX: 0, translateY: 0 });
         }
-    }, [positions, rootPersonId, TRIANGLE_WIDTH, TRIANGLE_HEIGHT]);
+    }, [centerOnRoot]);
 
     if (!rootPerson) {
         return (
