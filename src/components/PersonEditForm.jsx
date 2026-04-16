@@ -65,6 +65,20 @@ const buildPicklistLabel = (person, relationKey) => {
     return `${name} (${formatBirthDate(person?.PersonDateOfBirth)})`;
 };
 
+const hasOptionWithId = (options, idKeys, selectedValue) => {
+    if (selectedValue === null || selectedValue === undefined || selectedValue === '') {
+        return false;
+    }
+
+    const selectedId = String(selectedValue);
+    return options.some((option) => {
+        const optionId = idKeys
+            .map((key) => option?.[key])
+            .find((value) => value !== null && value !== undefined && value !== '');
+        return optionId !== undefined && optionId !== null && String(optionId) === selectedId;
+    });
+};
+
 const MARRIAGE_END_REASONS = [
     { value: 'scheiding', label: 'Scheiding' },
     { value: 'overlijden_een_partner', label: 'Overlijden van een partner' },
@@ -830,6 +844,14 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                         {loadingText}
                     </MenuItem>
                 )}
+                {!isLoadingFathers && formData.FatherId && !hasOptionWithId(possibleFathers, ['PossibleFatherID', 'PersonID'], formData.FatherId) && (
+                    <MenuItem value={formData.FatherId}>
+                        {currentFatherOption
+                            ? `${buildPicklistLabel(currentFatherOption, 'PossibleFather')} (huidige selectie)`
+                            : `Huidige vader (ID: ${formData.FatherId})`
+                        }
+                    </MenuItem>
+                )}
                 <MenuItem value="">
                     Vader onbekend, kies er een
                 </MenuItem>
@@ -861,6 +883,14 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                         {loadingText}
                     </MenuItem>
                 )}
+                {!isLoadingMothers && formData.MotherId && !hasOptionWithId(possibleMothers, ['PossibleMotherID', 'PersonID'], formData.MotherId) && (
+                    <MenuItem value={formData.MotherId}>
+                        {currentMotherOption
+                            ? `${buildPicklistLabel(currentMotherOption, 'PossibleMother')} (huidige selectie)`
+                            : `Huidige moeder (ID: ${formData.MotherId})`
+                        }
+                    </MenuItem>
+                )}
                 <MenuItem value="">
                     Moeder onbekend, kies er een
                 </MenuItem>
@@ -890,6 +920,14 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 {isLoadingPartners && (
                     <MenuItem value={LOADING_OPTION_VALUE}>
                         {loadingText}
+                    </MenuItem>
+                )}
+                {!isLoadingPartners && formData.PartnerId && !hasOptionWithId(possiblePartners, ['PossiblePartnerID', 'PersonID'], formData.PartnerId) && (
+                    <MenuItem value={formData.PartnerId}>
+                        {currentPartnerOption
+                            ? `${buildPicklistLabel(currentPartnerOption, 'PossiblePartner')} (huidige selectie)`
+                            : `Huidige partner (ID: ${formData.PartnerId})`
+                        }
                     </MenuItem>
                 )}
                 <MenuItem value="">

@@ -365,7 +365,7 @@ PersonTriangle.propTypes = {
         PersonFamilyName: PropTypes.string,
         PersonDateOfBirth: PropTypes.string,
         PersonDateOfDeath: PropTypes.string,
-        PersonIsMale: PropTypes.bool,
+        PersonIsMale: PropTypes.oneOfType([PropTypes.bool, PropTypes.number]),
     }).isRequired,
     x: PropTypes.number.isRequired,
     y: PropTypes.number.isRequired,

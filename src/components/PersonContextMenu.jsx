@@ -71,17 +71,19 @@ const PersonContextMenu = ({
                 Persoon inzien
             </MenuItem>
             {isAdmin && (
-                <>
-                    <MenuItem onClick={handleEditClick}>
-                        Persoon bewerken
-                    </MenuItem>
-                    <MenuItem onClick={handleDeleteClick}>
-                        Persoon verwijderen
-                    </MenuItem>
-                    <MenuItem onClick={handleAddClick}>
-                        Kind toevoegen
-                    </MenuItem>
-                </>
+                <MenuItem onClick={handleEditClick}>
+                    Persoon bewerken
+                </MenuItem>
+            )}
+            {isAdmin && (
+                <MenuItem onClick={handleDeleteClick}>
+                    Persoon verwijderen
+                </MenuItem>
+            )}
+            {isAdmin && (
+                <MenuItem onClick={handleAddClick}>
+                    Kind toevoegen
+                </MenuItem>
             )}
             {!isAdmin && (
                 <MenuItem disabled style={{ cursor: 'not-allowed', pointerEvents: 'none' }}>
