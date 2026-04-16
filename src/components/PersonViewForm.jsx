@@ -20,6 +20,8 @@ import PropTypes from 'prop-types';
 import {
     buildFileAccessUrl,
     getFamilyFiles,
+    getMarriageHistoryForPerson,
+    getActiveMarriageForPerson,
     getFather,
     getFileBlob,
     getMother,
@@ -184,6 +186,32 @@ const formatGender = (value) => {
     return 'Onbekend';
 };
 
+const formatMarriageDate = (value) => {
+    if (!value) return '-';
+    try {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+            return String(value);
+        }
+        return date.toLocaleDateString('nl-NL');
+    } catch (err) {
+        return String(value);
+    }
+};
+
+const formatMarriageReason = (value) => {
+    if (!value) return 'actief';
+
+    const mapping = {
+        scheiding: 'Scheiding',
+        overlijden_een_partner: 'Overlijden van een partner',
+        overlijden_beide_partners: 'Overlijden van beide partners',
+        onbekend: 'Onbekend',
+    };
+
+    return mapping[value] || value;
+};
+
 /**
  * PersonViewForm Component
  * Read-only view of person details in the right drawer
@@ -201,6 +229,10 @@ const PersonViewForm = ({ person, onClose }) => {
     const [filesError, setFilesError] = useState('');
     const [brokenThumbs, setBrokenThumbs] = useState(new Set());
     const [relationsError, setRelationsError] = useState('');
+    const [activeMarriage, setActiveMarriage] = useState(null);
+    const [marriageHistory, setMarriageHistory] = useState([]);
+    const [isLoadingMarriages, setIsLoadingMarriages] = useState(false);
+    const [marriageError, setMarriageError] = useState('');
 
     useEffect(() => {
         if (!isLoadingRelations) {
@@ -323,6 +355,52 @@ const PersonViewForm = ({ person, onClose }) => {
         };
 
         loadFiles();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [person?.PersonID]);
+
+    useEffect(() => {
+        if (!person?.PersonID) {
+            setActiveMarriage(null);
+            setMarriageHistory([]);
+            setMarriageError('');
+            setIsLoadingMarriages(false);
+            return;
+        }
+
+        let isCancelled = false;
+
+        const loadMarriageInfo = async () => {
+            setIsLoadingMarriages(true);
+            setMarriageError('');
+
+            try {
+                const [active, history] = await Promise.all([
+                    getActiveMarriageForPerson(person.PersonID),
+                    getMarriageHistoryForPerson(person.PersonID),
+                ]);
+
+                if (!isCancelled) {
+                    setActiveMarriage(active);
+                    setMarriageHistory(Array.isArray(history) ? history : []);
+                }
+            } catch (err) {
+                console.error('Error loading marriage info in view form:', err);
+                if (!isCancelled) {
+                    setActiveMarriage(null);
+                    setMarriageHistory([]);
+                    setMarriageError(NO_CONNECTION_ERROR_TEXT);
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoadingMarriages(false);
+                }
+            }
+        };
+
+        loadMarriageInfo();
 
         return () => {
             isCancelled = true;
@@ -549,6 +627,94 @@ const PersonViewForm = ({ person, onClose }) => {
                     readOnly: true,
                 }}
             />
+
+            <Divider sx={{ mt: 1 }} />
+
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                Huwelijk
+            </Typography>
+
+            {marriageError ? <Alert severity="warning">{marriageError}</Alert> : null}
+
+            {isLoadingMarriages ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 1 }}>
+                    <CircularProgress size={20} />
+                </Box>
+            ) : (
+                <>
+                    <TextField
+                        label="Actief huwelijk"
+                        value={
+                            activeMarriage
+                                ? `${activeMarriage.PartnerGivvenName || ''} ${activeMarriage.PartnerFamilyName || ''}`.trim() || 'Onbekend'
+                                : 'Geen actief huwelijk'
+                        }
+                        fullWidth
+                        disabled
+                        InputProps={{
+                            readOnly: true,
+                        }}
+                    />
+
+                    <TextField
+                        label="Startdatum actief huwelijk"
+                        value={activeMarriage ? formatMarriageDate(activeMarriage.StartDate) : '-'}
+                        fullWidth
+                        disabled
+                        InputProps={{
+                            readOnly: true,
+                        }}
+                    />
+
+                    <TextField
+                        label="Duur actief huwelijk (jaren)"
+                        value={activeMarriage ? String(activeMarriage.DurationYears ?? '-') : '-'}
+                        fullWidth
+                        disabled
+                        InputProps={{
+                            readOnly: true,
+                        }}
+                    />
+
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        Historiek ({marriageHistory.length})
+                    </Typography>
+
+                    {marriageHistory.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary">
+                            Geen huwelijkshistoriek beschikbaar.
+                        </Typography>
+                    ) : (
+                        <Stack spacing={1}>
+                            {marriageHistory.slice(0, 5).map((row) => {
+                                const partnerLabel = `${row.PartnerGivvenName || ''} ${row.PartnerFamilyName || ''}`.trim() || 'Onbekend';
+                                const startLabel = formatMarriageDate(row.StartDate);
+                                const endLabel = row.EndDate ? formatMarriageDate(row.EndDate) : '-';
+                                const statusLabel = Number(row.IsActive) === 1 ? 'Actief' : 'Beeindigd';
+
+                                return (
+                                    <Box
+                                        key={`history-${row.MarriageID}`}
+                                        sx={{
+                                            p: 1,
+                                            border: '1px solid #e0e0e0',
+                                            borderRadius: 1,
+                                            bgcolor: '#fafafa',
+                                        }}
+                                    >
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                            {partnerLabel} ({statusLabel})
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary" display="block">
+                                            Start: {startLabel} | Einde: {endLabel} | Reden: {formatMarriageReason(row.EndReason)}
+                                        </Typography>
+                                    </Box>
+                                );
+                            })}
+                        </Stack>
+                    )}
+                </>
+            )}
 
             <Divider sx={{ mt: 1 }} />
 

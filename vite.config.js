@@ -9,5 +9,10 @@ export default defineConfig({
     watch: { usePolling: true},
     strictPort: true,
     port: 5173,
-  }
+  },
+  test: {
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.js',
+    globals: true,
+  },
 })

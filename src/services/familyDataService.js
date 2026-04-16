@@ -51,6 +51,16 @@ export const buildFileAccessUrl = (path) => {
     return `${MW_BASE_URL}${normalizedPath}${separator}token=${encodeURIComponent(token)}`;
 };
 
+const extractRowsFromCountedResult = (data) => {
+    if (!Array.isArray(data) || !data[0] || typeof data[0].numberOfRecords !== 'number') {
+        return [];
+    }
+    if (data[0].numberOfRecords < 1) {
+        return [];
+    }
+    return data.slice(1);
+};
+
 /**
  * Get persons with names similar to the search string
  * @param {string} searchString - The string to search for
@@ -472,10 +482,208 @@ export const getReleases = async (component) => {
 };
 
 /**
+ * Get active marriage for a person.
+ * @param {number} personId - Person ID
+ * @returns {Promise<Object|null>} Active marriage row or null
+ */
+export const getActiveMarriageForPerson = async (personId) => {
+    try {
+        const response = await fetch(`${MW_BASE_URL}/marriages/active/${personId}?_ts=${Date.now()}`, {
+            cache: 'no-store',
+        });
+        if (!response.ok) {
+            console.error(`getActiveMarriageForPerson failed: ${response.status} ${response.statusText}`);
+            return null;
+        }
+        const data = await response.json();
+        const rows = extractRowsFromCountedResult(data);
+        return rows[0] || null;
+    } catch (error) {
+        console.error('Error getting active marriage for person:', error);
+        return null;
+    }
+};
+
+/**
+ * Get marriage history for a person.
+ * @param {number} personId - Person ID
+ * @returns {Promise<Array>} Marriage history rows
+ */
+export const getMarriageHistoryForPerson = async (personId) => {
+    try {
+        const response = await fetch(`${MW_BASE_URL}/marriages/history/${personId}?_ts=${Date.now()}`, {
+            cache: 'no-store',
+        });
+        if (!response.ok) {
+            console.error(`getMarriageHistoryForPerson failed: ${response.status} ${response.statusText}`);
+            return [];
+        }
+        const data = await response.json();
+        return extractRowsFromCountedResult(data);
+    } catch (error) {
+        console.error('Error getting marriage history for person:', error);
+        return [];
+    }
+};
+
+/**
+ * Get active marriage for a specific pair.
+ * @param {number} personAId - First person ID
+ * @param {number} personBId - Second person ID
+ * @returns {Promise<Object|null>} Active marriage row or null
+ */
+export const getActiveMarriageForPair = async (personAId, personBId) => {
+    try {
+        const response = await fetch(`${MW_BASE_URL}/marriages/pair/${personAId}/${personBId}?_ts=${Date.now()}`, {
+            cache: 'no-store',
+        });
+        if (!response.ok) {
+            console.error(`getActiveMarriageForPair failed: ${response.status} ${response.statusText}`);
+            return null;
+        }
+        const data = await response.json();
+        const rows = extractRowsFromCountedResult(data);
+        return rows[0] || null;
+    } catch (error) {
+        console.error('Error getting active marriage for pair:', error);
+        return null;
+    }
+};
+
+/**
+ * Create a marriage.
+ * @param {Object} payload - Marriage payload
+ * @param {number} payload.personAId - First person ID
+ * @param {number} payload.personBId - Second person ID
+ * @param {string} payload.startDate - Start date (YYYY-MM-DD)
+ * @returns {Promise<Object>} Result object with success and optional error
+ */
+export const createMarriage = async ({ personAId, personBId, startDate }) => {
+    try {
+        const response = await fetch(`${MW_BASE_URL}/marriages`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ personAId, personBId, startDate }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            return {
+                success: false,
+                status: response.status,
+                error: data?.detail || 'Huwelijk aanmaken mislukt',
+            };
+        }
+
+        return {
+            success: Boolean(data?.success),
+            marriageId: data?.marriageId ?? null,
+            status: response.status,
+        };
+    } catch (error) {
+        console.error('Error creating marriage:', error);
+        return {
+            success: false,
+            status: 0,
+            error: NO_CONNECTION_ERROR_TEXT,
+        };
+    }
+};
+
+/**
+ * End an active marriage.
+ * @param {number} marriageId - Marriage ID from route
+ * @param {Object} payload - End marriage payload
+ * @param {number} payload.personAId - First person ID
+ * @param {number} payload.personBId - Second person ID
+ * @param {string} payload.endDate - End date (YYYY-MM-DD)
+ * @param {string} payload.endReason - End reason enum
+ * @returns {Promise<Object>} Result object with success and optional error
+ */
+export const endMarriage = async (marriageId, { personAId, personBId, endDate, endReason }) => {
+    try {
+        const response = await fetch(`${MW_BASE_URL}/marriages/${marriageId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ personAId, personBId, endDate, endReason }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            return {
+                success: false,
+                status: response.status,
+                error: data?.detail || 'Huwelijk beeindigen mislukt',
+            };
+        }
+
+        return {
+            success: Boolean(data?.success),
+            marriageId: data?.marriageId ?? null,
+            status: response.status,
+        };
+    } catch (error) {
+        console.error('Error ending marriage:', error);
+        return {
+            success: false,
+            status: 0,
+            error: NO_CONNECTION_ERROR_TEXT,
+        };
+    }
+};
+
+/**
+ * Update start date of an active marriage.
+ * @param {number} marriageId - Marriage ID from route
+ * @param {Object} payload - Update payload
+ * @param {number} payload.personAId - First person ID
+ * @param {number} payload.personBId - Second person ID
+ * @param {string} payload.startDate - New start date (YYYY-MM-DD)
+ * @returns {Promise<Object>} Result object with success and optional error
+ */
+export const updateMarriageStartDate = async (marriageId, { personAId, personBId, startDate }) => {
+    try {
+        const response = await fetch(`${MW_BASE_URL}/marriages/${marriageId}/start-date`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ personAId, personBId, startDate }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            return {
+                success: false,
+                status: response.status,
+                error: data?.detail || 'Startdatum huwelijk wijzigen mislukt',
+            };
+        }
+
+        return {
+            success: Boolean(data?.success),
+            marriageId: data?.marriageId ?? null,
+            status: response.status,
+        };
+    } catch (error) {
+        console.error('Error updating marriage start date:', error);
+        return {
+            success: false,
+            status: 0,
+            error: NO_CONNECTION_ERROR_TEXT,
+        };
+    }
+};
+
+/**
  * Update person details
  * @param {number} personId - The ID of the person
  * @param {Object} personData - The updated person data
- * @returns {Promise<boolean>} Success status
+ * @returns {Promise<{success: boolean, error?: string}>} Result object
  */
 export const updatePerson = async (personId, personData) => {
     try {
@@ -488,10 +696,22 @@ export const updatePerson = async (personId, personData) => {
             body: JSON.stringify({ personId, ...personData }),
         });
         const data = await response.json();
-        return data.success || false;
+        if (!response.ok) {
+            return {
+                success: false,
+                error: data?.detail || data?.error || 'Update mislukt',
+            };
+        }
+        return {
+            success: Boolean(data?.success),
+            error: data?.error || null,
+        };
     } catch (error) {
         console.error('Error updating person:', error);
-        return false;
+        return {
+            success: false,
+            error: NO_CONNECTION_ERROR_TEXT,
+        };
     }
 };
 /**

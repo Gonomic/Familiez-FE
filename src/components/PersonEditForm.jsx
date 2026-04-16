@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Alert, Box, TextField, Button, Typography, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, MenuItem } from '@mui/material';
+import { Alert, Box, TextField, Button, Typography, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { NO_CONNECTION_ERROR_TEXT } from '../constants/errorMessages';
 import PropTypes from 'prop-types';
-import { updatePerson, getPossibleMothersBasedOnAge, getPossibleFathersBasedOnAge, getPossiblePartnersBasedOnAge, getFather, getMother, getPartners, getChildren, getPersonDetails } from '../services/familyDataService';
+import { updatePerson, createMarriage, endMarriage, updateMarriageStartDate, getActiveMarriageForPerson, getPossibleMothersBasedOnAge, getPossibleFathersBasedOnAge, getPossiblePartnersBasedOnAge, getFather, getMother, getPartners, getChildren, getPersonDetails } from '../services/familyDataService';
 
 /**
  * Normalize input text by replacing special characters with standard equivalents
@@ -65,6 +65,13 @@ const buildPicklistLabel = (person, relationKey) => {
     return `${name} (${formatBirthDate(person?.PersonDateOfBirth)})`;
 };
 
+const MARRIAGE_END_REASONS = [
+    { value: 'scheiding', label: 'Scheiding' },
+    { value: 'overlijden_een_partner', label: 'Overlijden van een partner' },
+    { value: 'overlijden_beide_partners', label: 'Overlijden van beide partners' },
+    { value: 'onbekend', label: 'Onbekend' },
+];
+
 /**
  * PersonEditForm Component
  * Form for editing person details in the right drawer
@@ -82,9 +89,11 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
         MotherId: null,
         PartnerId: null,
         PersonIsMale: '',
+        MarriageStartDate: '',
     });
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState(null);
+    const [initialUpdateData, setInitialUpdateData] = useState(null);
     const [possibleMothers, setPossibleMothers] = useState([]);
     const [isLoadingMothers, setIsLoadingMothers] = useState(false);
     const [possibleFathers, setPossibleFathers] = useState([]);
@@ -95,6 +104,14 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
     const [isLoadingPartners, setIsLoadingPartners] = useState(false);
     const [currentPartnerOption, setCurrentPartnerOption] = useState(null);
     const [loadingDots, setLoadingDots] = useState(1);
+    const [existingActiveMarriage, setExistingActiveMarriage] = useState(null);
+    const [endMarriageDialogOpen, setEndMarriageDialogOpen] = useState(false);
+    const [endMarriageDate, setEndMarriageDate] = useState('');
+    const [endMarriageReason, setEndMarriageReason] = useState('scheiding');
+    const [endMarriageError, setEndMarriageError] = useState('');
+    const [isEndingMarriage, setIsEndingMarriage] = useState(false);
+    const [endMarriagePartialWarning, setEndMarriagePartialWarning] = useState('');
+    const [pendingPartnerClear, setPendingPartnerClear] = useState(null);
 
     useEffect(() => {
         const isAnyRelationLoading = isLoadingFathers || isLoadingMothers || isLoadingPartners;
@@ -116,6 +133,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
             setCurrentFatherOption(null);
             setCurrentMotherOption(null);
             setCurrentPartnerOption(null);
+            setInitialUpdateData(null);
             setFormData({
                 PersonGivvenName: person.PersonGivvenName || '',
                 PersonFamilyName: person.PersonFamilyName || '',
@@ -127,15 +145,17 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 MotherId: null,
                 PartnerId: null,
                 PersonIsMale: person.PersonIsMale === null || person.PersonIsMale === undefined ? '' : String(person.PersonIsMale),
+                MarriageStartDate: '',
             });
 
             // Load current relations
             const loadRelations = async () => {
                 try {
-                    const [fatherId, motherId, partners] = await Promise.all([
+                    const [fatherId, motherId, partners, activeMarriage] = await Promise.all([
                         getFather(person.PersonID, { throwOnError: true }),
                         getMother(person.PersonID, { throwOnError: true }),
-                        getPartners(person.PersonID, { throwOnError: true })
+                        getPartners(person.PersonID, { throwOnError: true }),
+                        getActiveMarriageForPerson(person.PersonID),
                     ]);
 
                     const [fatherDetails, motherDetails] = await Promise.all([
@@ -147,12 +167,30 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                         ...prev,
                         FatherId: fatherId || null,
                         MotherId: motherId || null,
-                        PartnerId: partners && partners.length > 0 ? partners[0].PersonID : null
+                        PartnerId: partners && partners.length > 0 ? partners[0].PersonID : null,
+                        MarriageStartDate: activeMarriage?.StartDate ? String(activeMarriage.StartDate).slice(0, 10) : '',
                     }));
 
                     setCurrentFatherOption(fatherDetails || null);
                     setCurrentMotherOption(motherDetails || null);
                     setCurrentPartnerOption(partners && partners.length > 0 ? partners[0] : null);
+                    setExistingActiveMarriage(activeMarriage || null);
+
+                    const initialPersonIsMaleValue = person.PersonIsMale === '' || person.PersonIsMale === null || person.PersonIsMale === undefined
+                        ? null
+                        : Number(person.PersonIsMale);
+                    setInitialUpdateData({
+                        PersonGivvenName: person.PersonGivvenName || '',
+                        PersonFamilyName: person.PersonFamilyName || '',
+                        PersonDateOfBirth: person.PersonDateOfBirth || '',
+                        PersonPlaceOfBirth: person.PersonPlaceOfBirth || '',
+                        PersonDateOfDeath: person.PersonDateOfDeath || null,
+                        PersonPlaceOfDeath: person.PersonPlaceOfDeath || null,
+                        PersonIsMale: initialPersonIsMaleValue,
+                        FatherId: fatherId || null,
+                        MotherId: motherId || null,
+                        PartnerId: partners && partners.length > 0 ? partners[0].PersonID : null,
+                    });
                 } catch (err) {
                     console.error('Error loading relations:', err);
                     setError(NO_CONNECTION_ERROR_TEXT);
@@ -162,6 +200,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
             loadRelations();
         }
     }, [person]);
+
 
     // Fetch possible mothers based on birth date
     useEffect(() => {
@@ -359,6 +398,27 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        const selectedPartnerId = formData.PartnerId ? Number(formData.PartnerId) : null;
+        const existingMarriagePartnerId = existingActiveMarriage?.PartnerID
+            ? Number(existingActiveMarriage.PartnerID)
+            : null;
+        const effectiveMarriagePartnerId = selectedPartnerId || existingMarriagePartnerId || null;
+        const hasActiveMarriage = Boolean(existingActiveMarriage?.MarriageID);
+        const isSameActiveMarriagePair = hasActiveMarriage && effectiveMarriagePartnerId && existingMarriagePartnerId
+            ? effectiveMarriagePartnerId === existingMarriagePartnerId
+            : false;
+        const normalizedExistingStartDate = existingActiveMarriage?.StartDate
+            ? String(existingActiveMarriage.StartDate).slice(0, 10)
+            : '';
+        const normalizedSubmittedStartDate = formData.MarriageStartDate
+            ? String(formData.MarriageStartDate).slice(0, 10)
+            : '';
+        const shouldUpdateExistingMarriageStartDate = Boolean(
+            hasActiveMarriage
+            && effectiveMarriagePartnerId
+            && normalizedSubmittedStartDate
+        );
         
         // Validate for invalid characters
         if (hasInvalidChars(formData.PersonGivvenName)) {
@@ -380,6 +440,36 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
             setError('Plaats van overlijden bevat ongeldige tekens. Gebruik alleen letters, cijfers en standaard leestekens.');
             return;
         }
+
+        if (!formData.PersonDateOfBirth) {
+            setError('Geboortedatum is verplicht.');
+            return;
+        }
+
+        if (!formData.PersonPlaceOfBirth) {
+            setError('Geboorteplaats is verplicht.');
+            return;
+        }
+
+        if (formData.PartnerId && !formData.MarriageStartDate && !existingActiveMarriage?.MarriageID) {
+            setError('Kies ook een startdatum huwelijk wanneer een partner is geselecteerd.');
+            return;
+        }
+
+        if (formData.MarriageStartDate && !formData.PartnerId && !hasActiveMarriage) {
+            setError('Kies eerst een partner om een huwelijk te starten.');
+            return;
+        }
+
+        if (hasActiveMarriage && !normalizedSubmittedStartDate) {
+            setError('Startdatum huwelijk is verplicht zolang er een actief huwelijk is.');
+            return;
+        }
+
+        if (hasActiveMarriage && !effectiveMarriagePartnerId) {
+            setError('Geen partner gevonden voor het actieve huwelijk.');
+            return;
+        }
         
         setIsSaving(true);
         setError(null);
@@ -390,8 +480,8 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
             const updateData = {
                 PersonGivvenName: formData.PersonGivvenName,
                 PersonFamilyName: formData.PersonFamilyName,
-                PersonDateOfBirth: formData.PersonDateOfBirth || null,
-                PersonPlaceOfBirth: formData.PersonPlaceOfBirth || null,
+                PersonDateOfBirth: formData.PersonDateOfBirth,
+                PersonPlaceOfBirth: formData.PersonPlaceOfBirth,
                 PersonDateOfDeath: formData.PersonDateOfDeath || null,
                 PersonPlaceOfDeath: formData.PersonPlaceOfDeath || null,
                 PersonIsMale: personIsMaleValue,
@@ -400,13 +490,50 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 PartnerId: formData.PartnerId || null,
             };
 
-            const success = await updatePerson(person.PersonID, updateData);
-            if (success) {
+            const hasPersonChanges = initialUpdateData
+                ? Object.keys(updateData).some((key) => (updateData[key] ?? null) !== (initialUpdateData[key] ?? null))
+                : true;
+
+            // Persist active marriage updates independently from person updates.
+            if (shouldUpdateExistingMarriageStartDate) {
+                const updateMarriageResult = await updateMarriageStartDate(existingActiveMarriage.MarriageID, {
+                    personAId: person.PersonID,
+                    personBId: effectiveMarriagePartnerId,
+                    startDate: normalizedSubmittedStartDate,
+                });
+
+                if (!updateMarriageResult.success) {
+                    setError(`Startdatum huwelijk wijzigen mislukt: ${updateMarriageResult.error || 'onbekende fout'}`);
+                    return;
+                }
+            }
+
+            const updateResult = hasPersonChanges
+                ? await updatePerson(person.PersonID, updateData)
+                : { success: true, error: null };
+            if (updateResult.success) {
+                if (formData.PartnerId && formData.MarriageStartDate && !existingActiveMarriage?.MarriageID) {
+                    const marriageResult = await createMarriage({
+                        personAId: person.PersonID,
+                        personBId: Number(formData.PartnerId),
+                        startDate: formData.MarriageStartDate,
+                    });
+
+                    if (!marriageResult.success) {
+                        setError(`Persoon opgeslagen, maar huwelijk starten mislukt: ${marriageResult.error || 'onbekende fout'}`);
+                        return;
+                    }
+                }
+
                 if (onSave) {
                     onSave({ ...person, ...updateData });
                 }
             } else {
-                setError('Opslaan mislukt. Probeer het opnieuw.');
+                if (shouldUpdateExistingMarriageStartDate) {
+                    setError(`Trouwdatum opgeslagen, maar persoonsgegevens opslaan mislukt: ${updateResult.error || 'onbekende fout'}`);
+                } else {
+                    setError(updateResult.error || 'Opslaan mislukt. Probeer het opnieuw.');
+                }
             }
         } catch (err) {
             setError('Er is een fout opgetreden bij het opslaan.');
@@ -419,6 +546,177 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
     const handleCancelClick = () => {
         if (onCancel) {
             onCancel();
+        }
+    };
+
+    const buildPersonUpdatePayload = (sourcePerson, fatherId, motherId, partnerId) => ({
+        PersonGivvenName: sourcePerson?.PersonGivvenName || '',
+        PersonFamilyName: sourcePerson?.PersonFamilyName || '',
+        PersonDateOfBirth: sourcePerson?.PersonDateOfBirth || null,
+        PersonPlaceOfBirth: sourcePerson?.PersonPlaceOfBirth || null,
+        PersonDateOfDeath: sourcePerson?.PersonDateOfDeath || null,
+        PersonPlaceOfDeath: sourcePerson?.PersonPlaceOfDeath || null,
+        PersonIsMale: sourcePerson?.PersonIsMale === null || sourcePerson?.PersonIsMale === undefined
+            ? null
+            : Number(sourcePerson.PersonIsMale),
+        FatherId: fatherId || null,
+        MotherId: motherId || null,
+        PartnerId: partnerId || null,
+    });
+
+    const handleOpenEndMarriageDialog = () => {
+        setEndMarriageError('');
+        setEndMarriagePartialWarning('');
+        setEndMarriageDate(new Date().toISOString().split('T')[0]);
+        setEndMarriageReason('scheiding');
+        setEndMarriageDialogOpen(true);
+    };
+
+    const handleCloseEndMarriageDialog = () => {
+        if (isEndingMarriage) {
+            return;
+        }
+        setEndMarriageDialogOpen(false);
+        setEndMarriageError('');
+        setEndMarriagePartialWarning('');
+        setPendingPartnerClear(null);
+    };
+
+    const refreshAfterMarriageEndSuccess = (currentUpdatePayload) => {
+        setFormData(prev => ({
+            ...prev,
+            PartnerId: null,
+            MarriageStartDate: '',
+        }));
+        setCurrentPartnerOption(null);
+        setExistingActiveMarriage(null);
+        setEndMarriageDialogOpen(false);
+        setEndMarriagePartialWarning('');
+        setPendingPartnerClear(null);
+
+        if (onSave) {
+            onSave({
+                ...person,
+                ...currentUpdatePayload,
+            });
+        }
+    };
+
+    const handleRetryPartnerClear = async () => {
+        if (!pendingPartnerClear) {
+            return;
+        }
+
+        setIsEndingMarriage(true);
+        setEndMarriageError('');
+
+        try {
+            const partnerClearResult = await updatePerson(
+                Number(pendingPartnerClear.partnerId),
+                pendingPartnerClear.partnerUpdatePayload,
+            );
+
+            if (!partnerClearResult.success) {
+                setEndMarriageError(`Partnerkoppeling bij de andere persoon kon nog niet worden leeggemaakt: ${partnerClearResult.error || 'onbekende fout'}`);
+                return;
+            }
+
+            refreshAfterMarriageEndSuccess(pendingPartnerClear.currentUpdatePayload);
+        } catch (err) {
+            console.error('Error retrying partner clear:', err);
+            setEndMarriageError('Herstelactie mislukt door een onverwachte fout.');
+        } finally {
+            setIsEndingMarriage(false);
+        }
+    };
+
+    const handleConfirmEndMarriage = async () => {
+        if (!existingActiveMarriage?.MarriageID) {
+            setEndMarriageError('Geen actief huwelijk gevonden om te beëindigen.');
+            return;
+        }
+
+        if (!endMarriageDate) {
+            setEndMarriageError('Einddatum is verplicht.');
+            return;
+        }
+
+        if (!endMarriageReason) {
+            setEndMarriageError('Reden is verplicht.');
+            return;
+        }
+
+        const partnerId = existingActiveMarriage.PartnerID || formData.PartnerId;
+        if (!partnerId) {
+            setEndMarriageError('Geen partner gevonden voor het actieve huwelijk.');
+            return;
+        }
+
+        setIsEndingMarriage(true);
+        setEndMarriageError('');
+
+        try {
+            const endResult = await endMarriage(existingActiveMarriage.MarriageID, {
+                personAId: person.PersonID,
+                personBId: Number(partnerId),
+                endDate: endMarriageDate,
+                endReason: endMarriageReason,
+            });
+
+            if (!endResult.success) {
+                setEndMarriageError(endResult.error || 'Huwelijk beëindigen mislukt.');
+                return;
+            }
+
+            const currentUpdatePayload = buildPersonUpdatePayload(
+                {
+                    ...person,
+                    ...formData,
+                    PersonIsMale: formData.PersonIsMale,
+                },
+                formData.FatherId,
+                formData.MotherId,
+                null,
+            );
+
+            const currentClearResult = await updatePerson(person.PersonID, currentUpdatePayload);
+            if (!currentClearResult.success) {
+                setEndMarriageError(`Huwelijk beëindigd, maar partner kon niet worden leeggemaakt voor huidige persoon: ${currentClearResult.error || 'onbekende fout'}`);
+                return;
+            }
+
+            const [partnerDetails, partnerFatherId, partnerMotherId] = await Promise.all([
+                getPersonDetails(partnerId, { throwOnError: true }),
+                getFather(partnerId, { throwOnError: true }),
+                getMother(partnerId, { throwOnError: true }),
+            ]);
+
+            if (partnerDetails) {
+                const partnerUpdatePayload = buildPersonUpdatePayload(
+                    partnerDetails,
+                    partnerFatherId,
+                    partnerMotherId,
+                    null,
+                );
+
+                const partnerClearResult = await updatePerson(Number(partnerId), partnerUpdatePayload);
+                if (!partnerClearResult.success) {
+                    setPendingPartnerClear({
+                        partnerId: Number(partnerId),
+                        partnerUpdatePayload,
+                        currentUpdatePayload,
+                    });
+                    setEndMarriagePartialWarning('Huwelijk is beëindigd en huidige persoon is bijgewerkt, maar de partnerkoppeling bij de andere persoon staat nog open.');
+                    return;
+                }
+            }
+
+            refreshAfterMarriageEndSuccess(currentUpdatePayload);
+        } catch (err) {
+            console.error('Error ending marriage:', err);
+            setEndMarriageError('Er is een fout opgetreden bij het beëindigen van het huwelijk.');
+        } finally {
+            setIsEndingMarriage(false);
         }
     };
 
@@ -604,6 +902,22 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 ))}
             </TextField>
 
+            <TextField
+                label="Startdatum huwelijk"
+                type="date"
+                value={formData.MarriageStartDate}
+                onChange={handleChange('MarriageStartDate')}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ max: new Date().toISOString().split('T')[0] }}
+                disabled={isSaving}
+                helperText={
+                    existingActiveMarriage?.MarriageID
+                        ? 'Actief huwelijk gevonden. Startdatum mag je aanpassen zolang partner gelijk blijft en er geen overlap met andere huwelijken ontstaat.'
+                        : 'Vul in om nieuw huwelijk te starten met geselecteerde partner.'
+                }
+            />
+
             <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
                 <Button
                     type="submit"
@@ -624,6 +938,72 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                     Annuleren
                 </Button>
             </Box>
+
+            {existingActiveMarriage?.MarriageID && (
+                <Button
+                    variant="outlined"
+                    color="warning"
+                    onClick={handleOpenEndMarriageDialog}
+                    disabled={isSaving || isEndingMarriage}
+                >
+                    Huwelijk beëindigen
+                </Button>
+            )}
+
+            <Dialog open={endMarriageDialogOpen} onClose={handleCloseEndMarriageDialog} fullWidth maxWidth="sm">
+                <DialogTitle>Huwelijk beëindigen</DialogTitle>
+                <DialogContent sx={{ pt: 1 }}>
+                    {endMarriageError && (
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                            {endMarriageError}
+                        </Alert>
+                    )}
+
+                    {endMarriagePartialWarning && (
+                        <Alert severity="warning" sx={{ mb: 2 }}>
+                            {endMarriagePartialWarning}
+                        </Alert>
+                    )}
+
+                    <TextField
+                        label="Einddatum"
+                        type="date"
+                        fullWidth
+                        value={endMarriageDate}
+                        onChange={(event) => setEndMarriageDate(event.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                        sx={{ mt: 1 }}
+                    />
+
+                    <TextField
+                        label="Reden"
+                        select
+                        fullWidth
+                        value={endMarriageReason}
+                        onChange={(event) => setEndMarriageReason(event.target.value)}
+                        sx={{ mt: 2 }}
+                    >
+                        {MARRIAGE_END_REASONS.map((reason) => (
+                            <MenuItem key={reason.value} value={reason.value}>
+                                {reason.label}
+                            </MenuItem>
+                        ))}
+                    </TextField>
+                </DialogContent>
+                <DialogActions>
+                    {pendingPartnerClear && (
+                        <Button onClick={handleRetryPartnerClear} color="warning" disabled={isEndingMarriage}>
+                            Herstel partnerkoppeling afronden
+                        </Button>
+                    )}
+                    <Button onClick={handleCloseEndMarriageDialog} disabled={isEndingMarriage}>
+                        Annuleren
+                    </Button>
+                    <Button onClick={handleConfirmEndMarriage} color="warning" variant="contained" disabled={isEndingMarriage}>
+                        {isEndingMarriage ? 'Beëindigen...' : 'Beëindigen'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };

@@ -115,11 +115,11 @@ export const initiateSSOLogin = async () => {
   }
 
   const resolvedRedirectUri = resolveRedirectUri(redirectUri);
-  if (resolvedRedirectUri.origin !== window.location.origin) {
-    throw new Error(
-      `OAuth redirect origin mismatch: app is running on ${window.location.origin} but VITE_REDIRECT_URI uses ${resolvedRedirectUri.origin}`
-    );
-  }
+  // In IDE/browser-tab workflows the app may run on localhost while VITE_REDIRECT_URI
+  // is configured to a LAN hostname/IP. Fall back to current origin to keep login usable.
+  const effectiveRedirectUri = resolvedRedirectUri.origin === window.location.origin
+    ? resolvedRedirectUri
+    : new URL('/auth/callback', window.location.origin);
 
   // Ensure a clean local auth state before starting a new login
   localStorage.removeItem(STORAGE_TOKEN_KEY);
@@ -142,7 +142,7 @@ export const initiateSSOLogin = async () => {
 
   const params = new URLSearchParams({
     client_id: clientId,
-    redirect_uri: resolvedRedirectUri.toString(),
+    redirect_uri: effectiveRedirectUri.toString(),
     response_type: "code",
     scope: "openid profile email",
     state,

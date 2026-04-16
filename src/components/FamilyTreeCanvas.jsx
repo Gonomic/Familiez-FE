@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
 import PersonTriangle from './PersonTriangle';
 import PersonContextMenu from './PersonContextMenu';
-import { getPersonDetails, getFather, getMother, getChildren, getPartners } from '../services/familyDataService';
+import { getPersonDetails, getFather, getMother, getChildren, getPartners, getActiveMarriageForPair } from '../services/familyDataService';
 import { getPersonPortraitUrl } from '../services/familyDataService';
 import { NO_CONNECTION_ERROR_TEXT } from '../constants/errorMessages';
 
@@ -31,6 +31,7 @@ const FamilyTreeCanvas = ({
     const [positions, setPositions] = useState(new Map());
     const [parentsMap, setParentsMap] = useState(new Map());
     const [partnersMap, setPartnersMap] = useState(new Map());
+    const [marriagesMap, setMarriagesMap] = useState(new Map());
     const [canvasSize, setCanvasSize] = useState({ width: 2000, height: 2000 });
     const [contextMenu, setContextMenu] = useState(null);
     const [selectedPerson, setSelectedPerson] = useState(null);
@@ -91,6 +92,7 @@ const FamilyTreeCanvas = ({
             setPositions(new Map());
             setParentsMap(new Map());
             setPartnersMap(new Map());
+            setMarriagesMap(new Map());
             setCanvasSize({ width: 2000, height: 2000 });
             setIsLoadingTree(false);
             setTreeLoadError('');
@@ -105,6 +107,7 @@ const FamilyTreeCanvas = ({
         setPositions(new Map());
         setParentsMap(new Map());
         setPartnersMap(new Map());
+        setMarriagesMap(new Map());
 
         const newFamilyData = new Map();
         const newPositions = new Map();
@@ -112,6 +115,13 @@ const FamilyTreeCanvas = ({
         const newPartnersMap = new Map();
         const newChildrenMap = new Map();
         const partnerLookupCache = new Map();
+        const newMarriagesMap = new Map();
+
+        const getPairKey = (personAId, personBId) => {
+            const left = Math.min(personAId, personBId);
+            const right = Math.max(personAId, personBId);
+            return `${left}-${right}`;
+        };
 
         const arePartners = async (personId, partnerId) => {
             if (!personId || !partnerId) return false;
@@ -494,6 +504,29 @@ const FamilyTreeCanvas = ({
             // Calculate positions and canvas size
             const canvasDimensions = calculatePositions(newFamilyData, newParentsMap, newPartnersMap, rootPersonId, newPositions);
 
+            // Load active marriage metadata for visible partner pairs.
+            const checkedPairs = new Set();
+            const marriageRequests = [];
+            newPartnersMap.forEach((partners, personId) => {
+                (partners || []).forEach((partnerId) => {
+                    const pairKey = getPairKey(personId, partnerId);
+                    if (checkedPairs.has(pairKey)) {
+                        return;
+                    }
+                    checkedPairs.add(pairKey);
+                    marriageRequests.push({ personId, partnerId, pairKey });
+                });
+            });
+
+            await Promise.all(
+                marriageRequests.map(async ({ personId, partnerId, pairKey }) => {
+                    const marriage = await getActiveMarriageForPair(personId, partnerId);
+                    if (marriage) {
+                        newMarriagesMap.set(pairKey, marriage);
+                    }
+                })
+            );
+
             if (requestId !== buildRequestIdRef.current) {
                 return;
             }
@@ -501,6 +534,7 @@ const FamilyTreeCanvas = ({
             setFamilyData(newFamilyData);
             setParentsMap(newParentsMap);
             setPartnersMap(newPartnersMap);
+            setMarriagesMap(newMarriagesMap);
             setPositions(newPositions);
             setCanvasSize(canvasDimensions);
                 // Lazy/progressieve foto-ophaal met caching en concurrency
@@ -555,6 +589,7 @@ const FamilyTreeCanvas = ({
                 setPositions(new Map());
                 setParentsMap(new Map());
                 setPartnersMap(new Map());
+                setMarriagesMap(new Map());
                 setTreeLoadError(NO_CONNECTION_ERROR_TEXT);
             }
         } finally {
@@ -1161,6 +1196,7 @@ const FamilyTreeCanvas = ({
     const renderConnectionLines = () => {
         const partnerLines = [];
         const partnerDots = [];
+        const partnerMarriageLabels = [];
         const parentChildLines = [];
         const partnerCenters = new Map();
 
@@ -1168,6 +1204,66 @@ const FamilyTreeCanvas = ({
             const left = Math.min(personAId, personBId);
             const right = Math.max(personAId, personBId);
             return `${left}-${right}`;
+        };
+
+        const parseDateValue = (value) => {
+            if (!value) {
+                return null;
+            }
+            if (value instanceof Date) {
+                return Number.isNaN(value.getTime()) ? null : value;
+            }
+
+            const normalized = String(value).trim();
+            const ymdMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (ymdMatch) {
+                const year = Number(ymdMatch[1]);
+                const month = Number(ymdMatch[2]);
+                const day = Number(ymdMatch[3]);
+                const localDate = new Date(year, month - 1, day);
+                return Number.isNaN(localDate.getTime()) ? null : localDate;
+            }
+
+            const parsed = new Date(normalized);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+        };
+
+        const formatDate = (value) => {
+            if (!value) {
+                return '';
+            }
+            const date = parseDateValue(value);
+            if (!date) {
+                return String(value);
+            }
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}-${month}-${year}`;
+        };
+
+        const getDurationLabel = (marriage) => {
+            if (typeof marriage?.DurationYears === 'number' && Number.isFinite(marriage.DurationYears)) {
+                return `${marriage.DurationYears} jaar`;
+            }
+            const startValue = marriage?.StartDate;
+            if (!startValue) {
+                return '';
+            }
+            const startDate = parseDateValue(startValue);
+            if (!startDate) {
+                return '';
+            }
+            const endDate = marriage?.EndDate ? parseDateValue(marriage.EndDate) : new Date();
+            if (!endDate) {
+                return '';
+            }
+            let years = endDate.getFullYear() - startDate.getFullYear();
+            const monthDiff = endDate.getMonth() - startDate.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && endDate.getDate() < startDate.getDate())) {
+                years -= 1;
+            }
+            return `${Math.max(0, years)} jaar`;
         };
 
         // Partner connections (bottom points connected) and center dots
@@ -1206,6 +1302,11 @@ const FamilyTreeCanvas = ({
                     />
                 );
 
+                const marriage = marriagesMap.get(pairKey);
+                const startDateLabel = marriage ? formatDate(marriage.StartDate) : '';
+                const durationLabel = marriage ? getDurationLabel(marriage) : '';
+
+                // Keep the original partner center dot.
                 partnerDots.push(
                     <circle
                         key={`partner-dot-${pairKey}`}
@@ -1217,6 +1318,44 @@ const FamilyTreeCanvas = ({
                         strokeWidth="1"
                     />
                 );
+
+                if (marriage) {
+                    // Draw marriage information in the implicit center space between both partner triangles.
+                    const marriageInfoCenterY = centerY - (TRIANGLE_HEIGHT / 2);
+                    partnerMarriageLabels.push(
+                        <g key={`partner-marriage-label-${pairKey}`} pointerEvents="none">
+                            <path
+                                d={`M ${centerX - 12} ${marriageInfoCenterY - 10} C ${centerX - 9} ${marriageInfoCenterY - 16}, ${centerX - 3} ${marriageInfoCenterY - 16}, ${centerX} ${marriageInfoCenterY - 10} C ${centerX + 3} ${marriageInfoCenterY - 4}, ${centerX + 9} ${marriageInfoCenterY - 4}, ${centerX + 12} ${marriageInfoCenterY - 10} C ${centerX + 9} ${marriageInfoCenterY - 16}, ${centerX + 3} ${marriageInfoCenterY - 16}, ${centerX} ${marriageInfoCenterY - 10} C ${centerX - 3} ${marriageInfoCenterY - 4}, ${centerX - 9} ${marriageInfoCenterY - 4}, ${centerX - 12} ${marriageInfoCenterY - 10}`}
+                                fill="none"
+                                stroke="#8d5a00"
+                                strokeWidth="1.6"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+                            <text
+                                x={centerX}
+                                y={marriageInfoCenterY + 6}
+                                textAnchor="middle"
+                                fill="#7a4b00"
+                                fontSize="10"
+                                fontFamily="Verdana, sans-serif"
+                                fontWeight="bold"
+                            >
+                                {startDateLabel}
+                            </text>
+                            <text
+                                x={centerX}
+                                y={marriageInfoCenterY + 18}
+                                textAnchor="middle"
+                                fill="#7a4b00"
+                                fontSize="9"
+                                fontFamily="Verdana, sans-serif"
+                            >
+                                {durationLabel}
+                            </text>
+                        </g>
+                    );
+                }
             });
         });
 
@@ -1293,7 +1432,7 @@ const FamilyTreeCanvas = ({
             }
         });
 
-        return [...partnerLines, ...parentChildLines, ...partnerDots];
+        return [...partnerLines, ...parentChildLines, ...partnerMarriageLabels, ...partnerDots];
     };
 
     // Build tree when selected person or generation settings change
