@@ -104,6 +104,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
         PartnerId: null,
         PersonIsMale: '',
         MarriageStartDate: '',
+        MarriagePlace: '',
     });
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState(null);
@@ -160,6 +161,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 PartnerId: null,
                 PersonIsMale: person.PersonIsMale === null || person.PersonIsMale === undefined ? '' : String(person.PersonIsMale),
                 MarriageStartDate: '',
+                MarriagePlace: '',
             });
 
             // Load current relations
@@ -183,6 +185,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                         MotherId: motherId || null,
                         PartnerId: partners && partners.length > 0 ? partners[0].PersonID : null,
                         MarriageStartDate: activeMarriage?.StartDate ? String(activeMarriage.StartDate).slice(0, 10) : '',
+                        MarriagePlace: activeMarriage?.MarriagePlace || '',
                     }));
 
                     setCurrentFatherOption(fatherDetails || null);
@@ -400,7 +403,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
         
         // Auto-normalize text fields (not dates)
         if (field === 'PersonGivvenName' || field === 'PersonFamilyName' || 
-            field === 'PersonPlaceOfBirth' || field === 'PersonPlaceOfDeath') {
+            field === 'PersonPlaceOfBirth' || field === 'PersonPlaceOfDeath' || field === 'MarriagePlace') {
             value = normalizeInput(value);
         }
         
@@ -452,6 +455,11 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
         
         if (formData.PersonPlaceOfDeath && hasInvalidChars(formData.PersonPlaceOfDeath)) {
             setError('Plaats van overlijden bevat ongeldige tekens. Gebruik alleen letters, cijfers en standaard leestekens.');
+            return;
+        }
+
+        if (formData.MarriagePlace && hasInvalidChars(formData.MarriagePlace)) {
+            setError('Plaats huwelijk bevat ongeldige tekens. Gebruik alleen letters, cijfers en standaard leestekens.');
             return;
         }
 
@@ -514,6 +522,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                     personAId: person.PersonID,
                     personBId: effectiveMarriagePartnerId,
                     startDate: normalizedSubmittedStartDate,
+                    marriagePlace: formData.MarriagePlace || null,
                 });
 
                 if (!updateMarriageResult.success) {
@@ -531,6 +540,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                         personAId: person.PersonID,
                         personBId: Number(formData.PartnerId),
                         startDate: formData.MarriageStartDate,
+                        marriagePlace: formData.MarriagePlace || null,
                     });
 
                     if (!marriageResult.success) {
@@ -601,6 +611,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
             ...prev,
             PartnerId: null,
             MarriageStartDate: '',
+            MarriagePlace: '',
         }));
         setCurrentPartnerOption(null);
         setExistingActiveMarriage(null);
@@ -954,6 +965,15 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                         ? 'Actief huwelijk gevonden. Startdatum mag je aanpassen zolang partner gelijk blijft en er geen overlap met andere huwelijken ontstaat.'
                         : 'Vul in om nieuw huwelijk te starten met geselecteerde partner.'
                 }
+            />
+
+            <TextField
+                label="Plaats huwelijk"
+                value={formData.MarriagePlace}
+                onChange={handleChange('MarriagePlace')}
+                fullWidth
+                disabled={isSaving}
+                helperText="Optioneel. Bijvoorbeeld: Amsterdam"
             />
 
             <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>

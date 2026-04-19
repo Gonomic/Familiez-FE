@@ -9,6 +9,7 @@ import Footer from './Footer';
 import FamiliezBewerken from './FamiliezBewerken';
 import FamiliezInfo from './FamiliezInfo';
 import FamiliezSysteem from './FamiliezSysteem';
+import BatchAddMarriages from './components/BatchAddMarriages';
 import LoginPage from './pages/LoginPage';
 import AuthCallback from './pages/AuthCallback';
 import { getStoredToken, hasServerSession, startSessionKeepalive } from './services/authService';
@@ -294,6 +295,21 @@ const AppContent = () => {
               onPersonSelected={handlePersonSelected}
             />
             <FamiliezSysteem />
+            <Footer />
+          </>
+        </RequireAuth>
+      } />
+      <Route path="/batch-toevoegen-huwelijk" element={
+        <RequireAuth>
+          <>
+            <TopBar toggleLeftDrawer={toggleLeftDrawer} toggleRightDrawer={toggleRightDrawer} />
+            <LeftDrawer open={leftDrawerOpen} onClose={handleLeftDrawerClose} />
+            <RightDrawer 
+              open={rightDrawerOpen} 
+              onClose={handleRightDrawerClose}
+              onPersonSelected={handlePersonSelected}
+            />
+            <BatchAddMarriages />
             <Footer />
           </>
         </RequireAuth>

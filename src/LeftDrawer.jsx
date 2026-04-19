@@ -11,6 +11,7 @@ import CreateIcon from '@mui/icons-material/Create';
 import PermDeviceInformationIcon from '@mui/icons-material/PermDeviceInformation';
 import SettingsSuggestIcon from '@mui/icons-material/SettingsSuggest';
 import LogoutIcon from '@mui/icons-material/Logout';
+import GroupAddIcon from '@mui/icons-material/GroupAdd';
 import PropTypes from 'prop-types';
 import { useEffect, useState } from 'react';
 
@@ -22,7 +23,7 @@ const hasAuthState = () => {
     return token || Boolean(roleData);
 };
 
-const icons = [<CreateIcon key="create" />, <PermDeviceInformationIcon key="info" />, <SettingsSuggestIcon key="settings" />];
+const icons = [<CreateIcon key="create" />, <PermDeviceInformationIcon key="info" />, <SettingsSuggestIcon key="settings" />, <GroupAddIcon key="batch" />];
 
 function LeftDrawer({ open, onClose }) {
     const navigate = useNavigate();
@@ -50,9 +51,9 @@ function LeftDrawer({ open, onClose }) {
     const DrawerList = (
         <Box sx={{ width: 250, display: 'flex', flexDirection: 'column', height: '100%' }} role="presentation" onClick={onClose}>
             <List sx={{ flexGrow: 1 }}>
-                {['Familiez bewerken', 'Familiez info', 'Familiez systeem'].map((text, index) => (
+                {['Familiez bewerken', 'Familiez info', 'Familiez systeem', 'Batch toevoegen huwelijk'].map((text, index) => (
                     <ListItem key={text} disablePadding>
-                        <ListItemButton component={Link} to={`/${text.toLowerCase().replace(' ', '-')}`}>
+                        <ListItemButton component={Link} to={`/${text.toLowerCase().replace(/ /g, '-')}`}>
                             <ListItemIcon>
                                 {icons[index]}
                             </ListItemIcon>

@@ -556,16 +556,17 @@ export const getActiveMarriageForPair = async (personAId, personBId) => {
  * @param {number} payload.personAId - First person ID
  * @param {number} payload.personBId - Second person ID
  * @param {string} payload.startDate - Start date (YYYY-MM-DD)
+ * @param {string|null} payload.marriagePlace - Place of marriage
  * @returns {Promise<Object>} Result object with success and optional error
  */
-export const createMarriage = async ({ personAId, personBId, startDate }) => {
+export const createMarriage = async ({ personAId, personBId, startDate, marriagePlace = null }) => {
     try {
         const response = await fetch(`${MW_BASE_URL}/marriages`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ personAId, personBId, startDate }),
+            body: JSON.stringify({ personAId, personBId, startDate, marriagePlace }),
         });
 
         const data = await response.json();
@@ -643,16 +644,17 @@ export const endMarriage = async (marriageId, { personAId, personBId, endDate, e
  * @param {number} payload.personAId - First person ID
  * @param {number} payload.personBId - Second person ID
  * @param {string} payload.startDate - New start date (YYYY-MM-DD)
+ * @param {string|null} payload.marriagePlace - Place of marriage
  * @returns {Promise<Object>} Result object with success and optional error
  */
-export const updateMarriageStartDate = async (marriageId, { personAId, personBId, startDate }) => {
+export const updateMarriageStartDate = async (marriageId, { personAId, personBId, startDate, marriagePlace = null }) => {
     try {
         const response = await fetch(`${MW_BASE_URL}/marriages/${marriageId}/start-date`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ personAId, personBId, startDate }),
+            body: JSON.stringify({ personAId, personBId, startDate, marriagePlace }),
         });
 
         const data = await response.json();
@@ -677,6 +679,50 @@ export const updateMarriageStartDate = async (marriageId, { personAId, personBId
             error: NO_CONNECTION_ERROR_TEXT,
         };
     }
+};
+
+/**
+ * Get all person pairs that don't have an active marriage.
+ * @returns {Promise<Array>} Array of possible marriage pairs
+ */
+export const getPossibleMarriagePairs = async () => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 20000);
+    let response;
+
+    try {
+        response = await fetch(`${MW_BASE_URL}/marriages/possible-pairs?_ts=${Date.now()}`, {
+            cache: 'no-store',
+            signal: controller.signal,
+        });
+    } catch (error) {
+        if (error?.name === 'AbortError') {
+            throw new Error('Laden van paren duurde te lang (timeout). Probeer opnieuw.');
+        }
+        throw error;
+    } finally {
+        window.clearTimeout(timeoutId);
+    }
+
+    if (response.status === 401) {
+        clearStoredToken();
+        notifyAuthError("Uw sessie is verlopen. Meld u alstublieft opnieuw aan.");
+        throw new Error('Uw sessie is verlopen. Meld u alstublieft opnieuw aan.');
+    }
+
+    if (!response.ok) {
+        let detail = '';
+        try {
+            const errorData = await response.json();
+            detail = errorData?.detail || '';
+        } catch (_e) {
+            detail = '';
+        }
+        throw new Error(detail || `getPossibleMarriagePairs failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return extractRowsFromCountedResult(data);
 };
 
 /**
