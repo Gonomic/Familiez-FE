@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useSignal } from '@preact/signals-react'
 import { useSignals } from '@preact/signals-react/runtime'
 import Box from '@mui/material/Box'
@@ -7,7 +7,18 @@ import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
-import { fetchWithAuthHeaders, getMwBaseUrl } from './services/familyDataService'
+import Alert from '@mui/material/Alert'
+import TextField from '@mui/material/TextField'
+import Autocomplete from '@mui/material/Autocomplete'
+import debounce from 'lodash/debounce'
+import {
+    fetchWithAuthHeaders,
+    getMwBaseUrl,
+    getMyPreferences,
+    saveMyPreferences,
+    getPersonsLike,
+    getPersonDetails,
+} from './services/familyDataService'
 
 const SHOW_NON_PARTNER_PARENTS_KEY = 'familiez_show_non_partner_parents';
 
@@ -29,6 +40,38 @@ const FamiliezSysteem = () => {
     const FEFEDtRec = useSignal("");
     const FEFEDtRoundTrip = useSignal("");
     const showNonPartnerParents = useSignal(false);
+    const preferencesLoading = useSignal(false);
+    const preferencesSaving = useSignal(false);
+    const preferencesError = useSignal('');
+    const preferencesSuccess = useSignal('');
+    const linkedPerson = useSignal(null);
+    const linkedPersonOptions = useSignal([]);
+    const linkedPersonInputValue = useSignal('');
+    const generationsUp = useSignal('3');
+    const generationsDown = useSignal('3');
+    const autoShowTree = useSignal(false);
+    const isSelectingLinkedPersonRef = useRef(false);
+
+    const debouncedSearchPersons = useRef(
+        debounce(async (value) => {
+            if (isSelectingLinkedPersonRef.current) {
+                return;
+            }
+
+            if (!value || value.trim().length < 2) {
+                linkedPersonOptions.value = [];
+                return;
+            }
+
+            try {
+                const persons = await getPersonsLike(value);
+                linkedPersonOptions.value = persons;
+            } catch (error) {
+                console.error('Error while searching linked person:', error);
+                linkedPersonOptions.value = [];
+            }
+        }, 500)
+    ).current;
 
     useEffect(() => {
         const stored = localStorage.getItem(SHOW_NON_PARTNER_PARENTS_KEY);
@@ -36,6 +79,137 @@ const FamiliezSysteem = () => {
     // signal instance is stable for this component lifecycle
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadMyPreferences = async () => {
+            preferencesLoading.value = true;
+            preferencesError.value = '';
+            preferencesSuccess.value = '';
+
+            try {
+                const preferences = await getMyPreferences();
+
+                if (!isMounted) {
+                    return;
+                }
+
+                generationsUp.value = String(preferences.generations_up ?? 3);
+                generationsDown.value = String(preferences.generations_down ?? 3);
+                autoShowTree.value = Boolean(preferences.auto_show_tree);
+
+                if (preferences.linked_person_id) {
+                    const personDetails = await getPersonDetails(preferences.linked_person_id);
+                    if (!isMounted) {
+                        return;
+                    }
+
+                    if (personDetails) {
+                        linkedPerson.value = personDetails;
+                        linkedPersonOptions.value = [personDetails];
+                        linkedPersonInputValue.value = `${personDetails.PersonGivvenName} ${personDetails.PersonFamilyName} (${personDetails.PersonDateOfBirth})`;
+                    } else {
+                        linkedPerson.value = null;
+                        linkedPersonInputValue.value = '';
+                    }
+                } else {
+                    linkedPerson.value = null;
+                    linkedPersonInputValue.value = '';
+                }
+            } catch (error) {
+                console.error('Error loading my preferences:', error);
+                if (isMounted) {
+                    preferencesError.value = error?.message || 'Instellingen laden is mislukt';
+                }
+            } finally {
+                if (isMounted) {
+                    preferencesLoading.value = false;
+                }
+            }
+        };
+
+        loadMyPreferences();
+
+        return () => {
+            isMounted = false;
+            debouncedSearchPersons.cancel();
+        };
+    }, [
+        autoShowTree,
+        debouncedSearchPersons,
+        generationsDown,
+        generationsUp,
+        linkedPerson,
+        linkedPersonInputValue,
+        linkedPersonOptions,
+        preferencesError,
+        preferencesLoading,
+        preferencesSuccess,
+    ]);
+
+    const handleLinkedPersonInputChange = (event, newInputValue) => {
+        linkedPersonInputValue.value = newInputValue;
+        preferencesSuccess.value = '';
+        preferencesError.value = '';
+
+        if (!isSelectingLinkedPersonRef.current) {
+            debouncedSearchPersons(newInputValue);
+        }
+
+        isSelectingLinkedPersonRef.current = false;
+    };
+
+    const handleLinkedPersonChange = (event, newValue) => {
+        linkedPerson.value = newValue;
+        isSelectingLinkedPersonRef.current = true;
+    };
+
+    const handleGenerationChange = (setter) => (event) => {
+        const { value } = event.target;
+        if (value === '') {
+            setter.value = '';
+            return;
+        }
+
+        const parsed = parseInt(value, 10);
+        if (Number.isFinite(parsed)) {
+            setter.value = String(parsed);
+        }
+    };
+
+    const handleSaveMyPreferences = async () => {
+        preferencesError.value = '';
+        preferencesSuccess.value = '';
+
+        const parsedUp = parseInt(generationsUp.value, 10);
+        const parsedDown = parseInt(generationsDown.value, 10);
+
+        if (!Number.isFinite(parsedUp) || parsedUp < 0 || parsedUp > 10) {
+            preferencesError.value = 'Generaties omhoog moet tussen 0 en 10 liggen';
+            return;
+        }
+
+        if (!Number.isFinite(parsedDown) || parsedDown < 0 || parsedDown > 10) {
+            preferencesError.value = 'Generaties omlaag moet tussen 0 en 10 liggen';
+            return;
+        }
+
+        preferencesSaving.value = true;
+        try {
+            await saveMyPreferences({
+                linked_person_id: linkedPerson.value?.PersonID ?? null,
+                generations_up: parsedUp,
+                generations_down: parsedDown,
+                auto_show_tree: autoShowTree.value,
+            });
+            preferencesSuccess.value = 'Instellingen opgeslagen';
+        } catch (error) {
+            preferencesError.value = error?.message || 'Instellingen opslaan is mislukt';
+        } finally {
+            preferencesSaving.value = false;
+        }
+    };
 
     const handleButtonClickToPingMW = async () => {
         try {
@@ -222,6 +396,91 @@ const FamiliezSysteem = () => {
                         }
                         label="Toon ook ouders die geen partners (meer) zijn."
                     />
+                </Paper>
+
+                <Paper elevation={2} sx={{ p: 2, gridColumn: { xs: '1', md: '1 / -1' } }}>
+                    <Typography variant="h6" sx={{ mb: 1 }}>
+                        Mijn stamboom instellingen
+                    </Typography>
+
+                    {preferencesLoading.value ? (
+                        <Typography sx={{ mb: 2 }} color="text.secondary">
+                            Instellingen laden...
+                        </Typography>
+                    ) : null}
+
+                    {preferencesError.value ? (
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                            {preferencesError.value}
+                        </Alert>
+                    ) : null}
+
+                    {preferencesSuccess.value ? (
+                        <Alert severity="success" sx={{ mb: 2 }}>
+                            {preferencesSuccess.value}
+                        </Alert>
+                    ) : null}
+
+                    <Autocomplete
+                        value={linkedPerson.value}
+                        onChange={handleLinkedPersonChange}
+                        inputValue={linkedPersonInputValue.value}
+                        onInputChange={handleLinkedPersonInputChange}
+                        options={linkedPersonOptions.value}
+                        getOptionLabel={(option) => (
+                            `${option.PersonGivvenName} ${option.PersonFamilyName} (${option.PersonDateOfBirth})`
+                        )}
+                        isOptionEqualToValue={(option, value) => option.PersonID === value.PersonID}
+                        renderInput={(params) => (
+                            <TextField
+                                {...params}
+                                label="Zoek en selecteer uw persoon in de stamboom"
+                                InputLabelProps={{ shrink: true }}
+                            />
+                        )}
+                        sx={{ mb: 2 }}
+                    />
+
+                    <TextField
+                        type="number"
+                        label="Generaties omhoog tonen"
+                        value={generationsUp.value}
+                        onChange={handleGenerationChange(generationsUp)}
+                        InputProps={{ inputProps: { min: 0, max: 10, step: 1 } }}
+                        fullWidth
+                        sx={{ mb: 2 }}
+                    />
+
+                    <TextField
+                        type="number"
+                        label="Generaties omlaag tonen"
+                        value={generationsDown.value}
+                        onChange={handleGenerationChange(generationsDown)}
+                        InputProps={{ inputProps: { min: 0, max: 10, step: 1 } }}
+                        fullWidth
+                        sx={{ mb: 2 }}
+                    />
+
+                    <FormControlLabel
+                        control={
+                            <Checkbox
+                                checked={autoShowTree.value}
+                                onChange={(event) => {
+                                    autoShowTree.value = event.target.checked;
+                                }}
+                            />
+                        }
+                        label="Stamboom automatisch tonen na inloggen"
+                        sx={{ mb: 2 }}
+                    />
+
+                    <Button
+                        variant="contained"
+                        onClick={handleSaveMyPreferences}
+                        disabled={preferencesSaving.value}
+                    >
+                        {preferencesSaving.value ? 'Opslaan...' : 'Opslaan'}
+                    </Button>
                 </Paper>
             </Box>
         </Box>

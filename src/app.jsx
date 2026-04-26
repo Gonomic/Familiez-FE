@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate, useNavigate } from 'react-router-dom';
 import { Alert, Snackbar } from '@mui/material';
 import TopBar from './TopBar';
@@ -13,6 +13,7 @@ import BatchAddMarriages from './components/BatchAddMarriages';
 import LoginPage from './pages/LoginPage';
 import AuthCallback from './pages/AuthCallback';
 import { getStoredToken, hasServerSession, startSessionKeepalive } from './services/authService';
+import { getMyPreferences } from './services/familyDataService';
 
 const RequireAuth = ({ children }) => {
   const [hasToken, setHasToken] = useState(false);
@@ -123,6 +124,55 @@ const AppContent = () => {
   const [nbrOfChildGenerations, setNbrOfChildGenerations] = useState(1);
   const [treeRefreshTrigger, setTreeRefreshTrigger] = useState(0);
   const [lastAddedParentId, setLastAddedParentId] = useState(null);
+  const autoTreeTokenRef = useRef('');
+
+  useEffect(() => {
+    const applyAutoTreePreferencesAfterLogin = async () => {
+      const token = getStoredToken() || '';
+      if (!token) {
+        autoTreeTokenRef.current = '';
+        return;
+      }
+
+      if (autoTreeTokenRef.current === token) {
+        return;
+      }
+
+      autoTreeTokenRef.current = token;
+
+      try {
+        const preferences = await getMyPreferences();
+        if (!preferences?.auto_show_tree || !preferences?.linked_person_id) {
+          return;
+        }
+
+        const parentGenerations = Number.isFinite(Number(preferences.generations_up))
+          ? Number(preferences.generations_up)
+          : 3;
+        const childGenerations = Number.isFinite(Number(preferences.generations_down))
+          ? Number(preferences.generations_down)
+          : 3;
+
+        setSelectedPerson({ PersonID: Number(preferences.linked_person_id) });
+        setNbrOfParentGenerations(parentGenerations);
+        setNbrOfChildGenerations(childGenerations);
+        navigate('/familiez-bewerken', { replace: true });
+      } catch (error) {
+        console.warn('Could not apply auto tree preferences after login:', error);
+      }
+    };
+
+    const handleAuthUpdated = () => {
+      applyAutoTreePreferencesAfterLogin();
+    };
+
+    window.addEventListener('familiez-auth-updated', handleAuthUpdated);
+    applyAutoTreePreferencesAfterLogin();
+
+    return () => {
+      window.removeEventListener('familiez-auth-updated', handleAuthUpdated);
+    };
+  }, [navigate]);
 
   const toggleLeftDrawer = () => {
     setLeftDrawerOpen(!leftDrawerOpen);

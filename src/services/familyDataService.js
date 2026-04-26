@@ -61,6 +61,13 @@ const extractRowsFromCountedResult = (data) => {
     return data.slice(1);
 };
 
+const normalizeMyPreferences = (data) => ({
+    linked_person_id: data?.linked_person_id ?? null,
+    generations_up: Number.isFinite(Number(data?.generations_up)) ? Number(data.generations_up) : 3,
+    generations_down: Number.isFinite(Number(data?.generations_down)) ? Number(data.generations_down) : 3,
+    auto_show_tree: Boolean(data?.auto_show_tree),
+});
+
 /**
  * Get persons with names similar to the search string
  * @param {string} searchString - The string to search for
@@ -114,6 +121,76 @@ export const getPersonsLike = async (searchString, options = {}) => {
             throw error;
         }
         return [];
+    }
+};
+
+/**
+ * Get the authenticated user's own tree preferences.
+ * @returns {Promise<{linked_person_id:number|null, generations_up:number, generations_down:number, auto_show_tree:boolean}>}
+ */
+export const getMyPreferences = async () => {
+    try {
+        const response = await fetch(`${MW_BASE_URL}/user/my-preferences`);
+
+        if (response.status === 401) {
+            clearStoredToken();
+            notifyAuthError("Uw sessie is verlopen. Meld u alstublieft opnieuw aan.");
+            throw new Error('Uw sessie is verlopen. Meld u alstublieft opnieuw aan.');
+        }
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData?.detail || NO_CONNECTION_ERROR_TEXT);
+        }
+
+        const data = await response.json();
+        return normalizeMyPreferences(data || {});
+    } catch (error) {
+        console.error('Error getting my preferences:', error);
+        throw error;
+    }
+};
+
+/**
+ * Save the authenticated user's own tree preferences.
+ * @param {Object} payload
+ * @param {number|null} payload.linked_person_id
+ * @param {number} payload.generations_up
+ * @param {number} payload.generations_down
+ * @param {boolean} payload.auto_show_tree
+ * @returns {Promise<{linked_person_id:number|null, generations_up:number, generations_down:number, auto_show_tree:boolean}>}
+ */
+export const saveMyPreferences = async (payload) => {
+    try {
+        const response = await fetch(`${MW_BASE_URL}/user/my-preferences`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                linked_person_id: payload?.linked_person_id ?? null,
+                generations_up: payload?.generations_up,
+                generations_down: payload?.generations_down,
+                auto_show_tree: Boolean(payload?.auto_show_tree),
+            }),
+        });
+
+        if (response.status === 401) {
+            clearStoredToken();
+            notifyAuthError("Uw sessie is verlopen. Meld u alstublieft opnieuw aan.");
+            throw new Error('Uw sessie is verlopen. Meld u alstublieft opnieuw aan.');
+        }
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data?.detail || NO_CONNECTION_ERROR_TEXT);
+        }
+
+        return normalizeMyPreferences(data || {});
+    } catch (error) {
+        console.error('Error saving my preferences:', error);
+        throw error;
     }
 };
 
