@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import PersonTriangle from './PersonTriangle';
 import PersonContextMenu from './PersonContextMenu';
 import { getPersonDetails, getFather, getMother, getChildren, getPartners, getActiveMarriageForPair } from '../services/familyDataService';
@@ -1610,6 +1612,80 @@ const FamilyTreeCanvas = ({
         }
     }, [centerOnRoot]);
 
+    const handlePrintTree = useCallback(async () => {
+        try {
+            if (!svgRef.current) {
+                console.error('SVG ref not available');
+                return;
+            }
+
+            const svgElement = svgRef.current;
+            
+            // Convert SVG to canvas using html2canvas
+            const canvas = await html2canvas(svgElement, {
+                backgroundColor: '#f7f7fa',
+                useCORS: true,
+                allowTaint: true,
+                logging: false,
+                scale: 2 // Higher quality
+            });
+            
+            // Get canvas dimensions
+            const imgWidth = canvas.width;
+            const imgHeight = canvas.height;
+            
+            // Create PDF with appropriate orientation
+            const isLandscape = imgWidth > imgHeight;
+            const pdf = new jsPDF({
+                orientation: isLandscape ? 'landscape' : 'portrait',
+                unit: 'mm',
+                format: 'a4',
+                compress: true
+            });
+            
+            // Get PDF dimensions
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            
+            // Calculate dimensions to fit on page with margins
+            const margin = 10; // mm
+            const availableWidth = pdfWidth - 2 * margin;
+            const availableHeight = pdfHeight - 2 * margin - 10; // Extra space for footer
+            
+            // Calculate scale to fit page
+            const scaleX = availableWidth / (imgWidth / 25.4); // Convert pixels to mm
+            const scaleY = availableHeight / (imgHeight / 25.4);
+            const scale = Math.min(scaleX, scaleY, 1); // Don't upscale
+            
+            // Calculate centered position
+            const finalWidth = (imgWidth / 25.4) * scale;
+            const finalHeight = (imgHeight / 25.4) * scale;
+            const xPos = margin + (availableWidth - finalWidth) / 2;
+            const yPos = margin;
+            
+            // Convert canvas to image and add to PDF
+            const imgData = canvas.toDataURL('image/png');
+            pdf.addImage(imgData, 'PNG', xPos, yPos, finalWidth, finalHeight);
+            
+            // Add footer with date and family name
+            pdf.setFontSize(8);
+            pdf.setTextColor(128, 128, 128);
+            const footerText = `Gegenereerd op ${new Date().toLocaleDateString('nl-NL')} - ${rootPerson?.PersonFamilyName || 'Stamboom'}`;
+            pdf.text(footerText, margin, pdfHeight - 5);
+            
+            // Generate filename with family name and date
+            const familyName = rootPerson?.PersonFamilyName || 'stamboom';
+            const dateStr = new Date().toISOString().split('T')[0];
+            const filename = `stamboom_${familyName}_${dateStr}.pdf`;
+            
+            // Download PDF
+            pdf.save(filename);
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            alert('Fout bij het maken van de PDF. Probeer het later opnieuw.');
+        }
+    }, [svgRef, rootPerson?.PersonFamilyName]);
+
     if (!rootPerson) {
         return (
             <div
@@ -1673,6 +1749,32 @@ const FamilyTreeCanvas = ({
                 }}
             >
                 Reset view
+            </button>
+
+            <button
+                type="button"
+                onClick={handlePrintTree}
+                title="Stamboom als PDF exporteren"
+                style={{
+                    position: 'absolute',
+                    top: 56,
+                    right: 16,
+                    zIndex: 3,
+                    background: '#388e3c',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '8px 16px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                }}
+            >
+                🖨️ Print
             </button>
 
             <svg
