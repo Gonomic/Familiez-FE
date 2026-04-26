@@ -1684,7 +1684,7 @@ const FamilyTreeCanvas = ({
             console.error('Error generating PDF:', error);
             alert('Fout bij het maken van de PDF. Probeer het later opnieuw.');
         }
-    }, [svgRef, rootPerson?.PersonFamilyName]);
+    }, [rootPerson?.PersonFamilyName]);
 
     if (!rootPerson) {
         return (
