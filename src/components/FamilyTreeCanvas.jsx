@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
 import PersonTriangle from './PersonTriangle';
 import PersonContextMenu from './PersonContextMenu';
 import { getPersonDetails, getFather, getMother, getChildren, getPartners, getActiveMarriageForPair } from '../services/familyDataService';
@@ -1614,77 +1613,107 @@ const FamilyTreeCanvas = ({
 
     const handlePrintTree = useCallback(async () => {
         try {
-            if (!svgRef.current) {
-                console.error('SVG ref not available');
+            if (!svgRef.current || positions.size === 0) {
+                console.error('SVG of tree data niet beschikbaar');
                 return;
             }
 
             const svgElement = svgRef.current;
-            
-            // Convert SVG to canvas using html2canvas
-            const canvas = await html2canvas(svgElement, {
-                backgroundColor: '#f7f7fa',
-                useCORS: true,
-                allowTaint: true,
-                logging: false,
-                scale: 2 // Higher quality
+            const EXPORT_PADDING_PX = 48;
+
+            let minX = Infinity;
+            let minY = Infinity;
+            let maxX = -Infinity;
+            let maxY = -Infinity;
+
+            positions.forEach((pos) => {
+                minX = Math.min(minX, pos.x);
+                minY = Math.min(minY, pos.y);
+                maxX = Math.max(maxX, pos.x + TRIANGLE_WIDTH);
+                maxY = Math.max(maxY, pos.y + TRIANGLE_HEIGHT);
             });
-            
-            // Get canvas dimensions
-            const imgWidth = canvas.width;
-            const imgHeight = canvas.height;
-            
-            // Create PDF with appropriate orientation
-            const isLandscape = imgWidth > imgHeight;
+
+            if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+                throw new Error('Kon boomgrenzen niet bepalen');
+            }
+
+            const exportWidthPx = Math.ceil((maxX - minX) + EXPORT_PADDING_PX * 2);
+            const exportHeightPx = Math.ceil((maxY - minY) + EXPORT_PADDING_PX * 2);
+
+            // Clone SVG, strip external portrait images and force export viewport to full tree bounds.
+            const svgClone = svgElement.cloneNode(true);
+            svgClone.querySelectorAll('image').forEach((img) => img.remove());
+            svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+            svgClone.setAttribute('width', `${exportWidthPx}`);
+            svgClone.setAttribute('height', `${exportHeightPx}`);
+            svgClone.setAttribute('viewBox', `0 0 ${exportWidthPx} ${exportHeightPx}`);
+
+            const exportGroup = svgClone.querySelector('g');
+            if (exportGroup) {
+                const translateX = EXPORT_PADDING_PX - minX;
+                const translateY = EXPORT_PADDING_PX - minY;
+                exportGroup.setAttribute('transform', `translate(${translateX},${translateY}) scale(1)`);
+            }
+
+            const serializer = new XMLSerializer();
+            const svgMarkup = serializer.serializeToString(svgClone);
+            const svgBlob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' });
+            const svgUrl = URL.createObjectURL(svgBlob);
+
+            const rasterizedImage = await new Promise((resolve, reject) => {
+                const image = new Image();
+                image.onload = () => resolve(image);
+                image.onerror = () => reject(new Error('Kon SVG niet omzetten naar afbeelding'));
+                image.src = svgUrl;
+            });
+
+            const canvas = document.createElement('canvas');
+            canvas.width = exportWidthPx;
+            canvas.height = exportHeightPx;
+            const context = canvas.getContext('2d');
+            if (!context) {
+                URL.revokeObjectURL(svgUrl);
+                throw new Error('Canvas context niet beschikbaar');
+            }
+
+            context.fillStyle = '#f7f7fa';
+            context.fillRect(0, 0, exportWidthPx, exportHeightPx);
+            context.drawImage(rasterizedImage, 0, 0, exportWidthPx, exportHeightPx);
+            URL.revokeObjectURL(svgUrl);
+
+            const PX_TO_MM = 0.264583;
+            const marginMm = 6;
+            const footerHeightMm = 6;
+            const contentWidthMm = exportWidthPx * PX_TO_MM;
+            const contentHeightMm = exportHeightPx * PX_TO_MM;
+            const pageWidthMm = contentWidthMm + marginMm * 2;
+            const pageHeightMm = contentHeightMm + marginMm * 2 + footerHeightMm;
+
             const pdf = new jsPDF({
-                orientation: isLandscape ? 'landscape' : 'portrait',
+                orientation: pageWidthMm > pageHeightMm ? 'landscape' : 'portrait',
                 unit: 'mm',
-                format: 'a4',
+                format: [pageHeightMm, pageWidthMm],
                 compress: true
             });
-            
-            // Get PDF dimensions
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-            
-            // Calculate dimensions to fit on page with margins
-            const margin = 10; // mm
-            const availableWidth = pdfWidth - 2 * margin;
-            const availableHeight = pdfHeight - 2 * margin - 10; // Extra space for footer
-            
-            // Calculate scale to fit page
-            const scaleX = availableWidth / (imgWidth / 25.4); // Convert pixels to mm
-            const scaleY = availableHeight / (imgHeight / 25.4);
-            const scale = Math.min(scaleX, scaleY, 1); // Don't upscale
-            
-            // Calculate centered position
-            const finalWidth = (imgWidth / 25.4) * scale;
-            const finalHeight = (imgHeight / 25.4) * scale;
-            const xPos = margin + (availableWidth - finalWidth) / 2;
-            const yPos = margin;
-            
-            // Convert canvas to image and add to PDF
+
             const imgData = canvas.toDataURL('image/png');
-            pdf.addImage(imgData, 'PNG', xPos, yPos, finalWidth, finalHeight);
-            
-            // Add footer with date and family name
+            pdf.addImage(imgData, 'PNG', marginMm, marginMm, contentWidthMm, contentHeightMm);
+
             pdf.setFontSize(8);
             pdf.setTextColor(128, 128, 128);
             const footerText = `Gegenereerd op ${new Date().toLocaleDateString('nl-NL')} - ${rootPerson?.PersonFamilyName || 'Stamboom'}`;
-            pdf.text(footerText, margin, pdfHeight - 5);
-            
-            // Generate filename with family name and date
+            pdf.text(footerText, marginMm, pageHeightMm - 2.5);
+
             const familyName = rootPerson?.PersonFamilyName || 'stamboom';
             const dateStr = new Date().toISOString().split('T')[0];
             const filename = `stamboom_${familyName}_${dateStr}.pdf`;
-            
-            // Download PDF
             pdf.save(filename);
         } catch (error) {
             console.error('Error generating PDF:', error);
             alert('Fout bij het maken van de PDF. Probeer het later opnieuw.');
         }
-    }, [rootPerson?.PersonFamilyName]);
+    }, [positions, TRIANGLE_WIDTH, TRIANGLE_HEIGHT, rootPerson?.PersonFamilyName]);
 
     if (!rootPerson) {
         return (
