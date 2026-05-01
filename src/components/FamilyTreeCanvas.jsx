@@ -118,12 +118,14 @@ const FamilyTreeCanvas = ({
         const partnerLookupCache = new Map();
         const newMarriagesMap = new Map();
 
+        // Pair keys are order-independent, so (A,B) and (B,A) map to the same marriage entry.
         const getPairKey = (personAId, personBId) => {
             const left = Math.min(personAId, personBId);
             const right = Math.max(personAId, personBId);
             return `${left}-${right}`;
         };
 
+        // Cache partner lists per person to avoid repeated API calls while building large trees.
         const arePartners = async (personId, partnerId) => {
             if (!personId || !partnerId) return false;
             if (!partnerLookupCache.has(personId)) {
@@ -149,6 +151,8 @@ const FamilyTreeCanvas = ({
             return personData;
         };
 
+        // Build order: root -> direct partner -> siblings -> ancestors -> descendants.
+        // This keeps relationship context complete before layout is calculated.
         // Start with root person
             const rootPersonData = await addPerson(rootPersonId, 0);
             if (!rootPersonData) {

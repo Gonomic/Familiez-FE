@@ -8,6 +8,11 @@ import { NO_CONNECTION_ERROR_TEXT } from "../constants/errorMessages";
 
 const MW_BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
+/**
+ * Build Authorization headers from the locally stored JWT token.
+ * Returns an empty object when no token exists so cookie-session fallback can still work.
+ * @returns {Record<string, string>}
+ */
 const buildAuthHeaders = () => {
     const token = getStoredToken();
     if (!token) {
@@ -19,6 +24,12 @@ const buildAuthHeaders = () => {
     return headers;
 };
 
+/**
+ * Wrapper around window.fetch that injects auth headers and keeps credentials enabled.
+ * @param {string} url
+ * @param {RequestInit} [options]
+ * @returns {Promise<Response>}
+ */
 const fetchWithAuth = (url, options = {}) => {
     const headers = {
         ...buildAuthHeaders(),
@@ -40,6 +51,12 @@ const fetch = fetchWithAuth;
 export const getMwBaseUrl = () => MW_BASE_URL;
 export const fetchWithAuthHeaders = fetchWithAuth;
 
+/**
+ * Build a browser-safe file URL for preview/download endpoints.
+ * Browsers cannot attach Authorization headers to img/window.open, so token is passed as query parameter.
+ * @param {string} path
+ * @returns {string}
+ */
 export const buildFileAccessUrl = (path) => {
     const token = getStoredToken();
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -51,6 +68,11 @@ export const buildFileAccessUrl = (path) => {
     return `${MW_BASE_URL}${normalizedPath}${separator}token=${encodeURIComponent(token)}`;
 };
 
+/**
+ * Normalize MW's "count header + rows" result format into plain rows.
+ * @param {Array} data
+ * @returns {Array}
+ */
 const extractRowsFromCountedResult = (data) => {
     if (!Array.isArray(data) || !data[0] || typeof data[0].numberOfRecords !== 'number') {
         return [];
@@ -61,6 +83,11 @@ const extractRowsFromCountedResult = (data) => {
     return data.slice(1);
 };
 
+/**
+ * Normalize preferences payload and apply safe defaults for missing/invalid values.
+ * @param {Object} data
+ * @returns {{linked_person_id:number|null, generations_up:number, generations_down:number, auto_show_tree:boolean}}
+ */
 const normalizeMyPreferences = (data) => ({
     linked_person_id: data?.linked_person_id ?? null,
     generations_up: Number.isFinite(Number(data?.generations_up)) ? Number(data.generations_up) : 3,
@@ -71,6 +98,7 @@ const normalizeMyPreferences = (data) => ({
 /**
  * Get persons with names similar to the search string
  * @param {string} searchString - The string to search for
+ * @param {{throwOnError?: boolean}} [options] - When true, reject instead of returning empty fallback
  * @returns {Promise<Array>} Array of matching persons
  */
 export const getPersonsLike = async (searchString, options = {}) => {
@@ -197,6 +225,7 @@ export const saveMyPreferences = async (payload) => {
 /**
  * Get person details by ID
  * @param {number} personId - The ID of the person
+ * @param {{throwOnError?: boolean}} [options] - When true, reject instead of returning null fallback
  * @returns {Promise<Object|null>} Person details or null
  */
 export const getPersonDetails = async (personId, options = {}) => {
@@ -236,6 +265,7 @@ export const getPersonDetails = async (personId, options = {}) => {
 /**
  * Get the father of a child
  * @param {number} childId - The ID of the child
+ * @param {{throwOnError?: boolean}} [options] - When true, reject instead of returning null fallback
  * @returns {Promise<number|null>} Father's ID or null
  */
 export const getFather = async (childId, options = {}) => {
@@ -275,6 +305,7 @@ export const getFather = async (childId, options = {}) => {
 /**
  * Get the mother of a child
  * @param {number} childId - The ID of the child
+ * @param {{throwOnError?: boolean}} [options] - When true, reject instead of returning null fallback
  * @returns {Promise<number|null>} Mother's ID or null
  */
 export const getMother = async (childId, options = {}) => {
@@ -346,6 +377,7 @@ export const getSiblings = async (parentId) => {
 /**
  * Get partners of a person
  * @param {number} personId - The ID of the person
+ * @param {{throwOnError?: boolean}} [options] - When true, reject instead of returning [] fallback
  * @returns {Promise<Array>} Array of partners
  */
 export const getPartners = async (personId, options = {}) => {
@@ -402,6 +434,7 @@ export const getPartners = async (personId, options = {}) => {
 /**
  * Get children of a person
  * @param {number} personId - The ID of the person
+ * @param {{throwOnError?: boolean}} [options] - When true, reject instead of returning [] fallback
  * @returns {Promise<Array>} Array of children
  */
 export const getChildren = async (personId, options = {}) => {
@@ -441,6 +474,7 @@ export const getChildren = async (personId, options = {}) => {
 /**
  * Get possible mothers based on a child's birth date
  * @param {string} personDateOfBirth - Birth date (YYYY-MM-DD)
+ * @param {{throwOnError?: boolean}} [options] - When true, reject instead of returning [] fallback
  * @returns {Promise<Array>} Array of possible mothers
  */
 export const getPossibleMothersBasedOnAge = async (personDateOfBirth, options = {}) => {
@@ -474,6 +508,7 @@ export const getPossibleMothersBasedOnAge = async (personDateOfBirth, options = 
 /**
  * Get possible fathers based on a child's birth date
  * @param {string} personDateOfBirth - Birth date (YYYY-MM-DD)
+ * @param {{throwOnError?: boolean}} [options] - When true, reject instead of returning [] fallback
  * @returns {Promise<Array>} Array of possible fathers
  */
 export const getPossibleFathersBasedOnAge = async (personDateOfBirth, options = {}) => {
@@ -507,6 +542,7 @@ export const getPossibleFathersBasedOnAge = async (personDateOfBirth, options = 
 /**
  * Get possible partners based on a person's birth date
  * @param {string} personDateOfBirth - Birth date (YYYY-MM-DD)
+ * @param {{throwOnError?: boolean}} [options] - When true, reject instead of returning [] fallback
  * @returns {Promise<Array>} Array of possible partners
  */
 export const getPossiblePartnersBasedOnAge = async (personDateOfBirth, options = {}) => {
