@@ -39,15 +39,73 @@ const getEnv = (name) => {
   return value ? String(value).trim() : "";
 };
 
-const getAuthConfig = () => {
+const buildAuthCandidate = ({
+  authBaseUrl,
+  clientId,
+  redirectUri,
+  discoveryUrl,
+  apiBaseUrl,
+  prompt,
+}) => {
+  if (!authBaseUrl || !clientId || !redirectUri || !apiBaseUrl) {
+    return null;
+  }
+
   return {
+    authBaseUrl,
+    clientId,
+    redirectUri,
+    discoveryUrl,
+    apiBaseUrl,
+    prompt,
+  };
+};
+
+const getAuthCandidates = () => {
+  const primary = buildAuthCandidate({
     authBaseUrl: getEnv("VITE_SYNOLOGY_AUTH_URL"),
     clientId: getEnv("VITE_CLIENT_ID"),
     redirectUri: getEnv("VITE_REDIRECT_URI"),
     discoveryUrl: getEnv("VITE_SYNOLOGY_DISCOVERY_URL"),
     apiBaseUrl: getEnv("VITE_API_BASE"),
     prompt: getEnv("VITE_SYNOLOGY_LOGIN_PROMPT") || "login",
-  };
+  });
+
+  const local = buildAuthCandidate({
+    authBaseUrl: getEnv("VITE_SYNOLOGY_AUTH_URL_LOCAL") || getEnv("VITE_SYNOLOGY_AUTH_URL"),
+    clientId: getEnv("VITE_CLIENT_ID_LOCAL"),
+    redirectUri: getEnv("VITE_REDIRECT_URI_LOCAL"),
+    discoveryUrl: getEnv("VITE_SYNOLOGY_DISCOVERY_URL_LOCAL") || getEnv("VITE_SYNOLOGY_DISCOVERY_URL"),
+    apiBaseUrl: getEnv("VITE_API_BASE_LOCAL") || getEnv("VITE_API_BASE"),
+    prompt: getEnv("VITE_SYNOLOGY_LOGIN_PROMPT_LOCAL") || getEnv("VITE_SYNOLOGY_LOGIN_PROMPT") || "login",
+  });
+
+  return [primary, local].filter(Boolean);
+};
+
+const getAuthConfig = () => {
+  const candidates = getAuthCandidates();
+  if (candidates.length === 0) {
+    return {
+      authBaseUrl: "",
+      clientId: "",
+      redirectUri: "",
+      discoveryUrl: "",
+      apiBaseUrl: "",
+      prompt: "login",
+    };
+  }
+
+  const currentOrigin = window.location.origin;
+  const byOrigin = candidates.find((candidate) => {
+    try {
+      return resolveRedirectUri(candidate.redirectUri).origin === currentOrigin;
+    } catch (err) {
+      return false;
+    }
+  });
+
+  return byOrigin || candidates[0];
 };
 
 const resolveRedirectUri = (rawRedirectUri) => {
@@ -115,11 +173,12 @@ export const initiateSSOLogin = async () => {
   }
 
   const resolvedRedirectUri = resolveRedirectUri(redirectUri);
-  // In IDE/browser-tab workflows the app may run on localhost while VITE_REDIRECT_URI
-  // is configured to a LAN hostname/IP. Fall back to current origin to keep login usable.
-  const effectiveRedirectUri = resolvedRedirectUri.origin === window.location.origin
-    ? resolvedRedirectUri
-    : new URL('/auth/callback', window.location.origin);
+  if (resolvedRedirectUri.origin !== window.location.origin) {
+    throw new Error(
+      `SSO redirect mismatch. Open de app via ${resolvedRedirectUri.origin} en probeer opnieuw.`
+    );
+  }
+  const effectiveRedirectUri = resolvedRedirectUri;
 
   // Ensure a clean local auth state before starting a new login
   localStorage.removeItem(STORAGE_TOKEN_KEY);
@@ -156,10 +215,11 @@ export const initiateSSOLogin = async () => {
 };
 
 export const exchangeCodeForToken = async (code, state) => {
-  const { apiBaseUrl, redirectUri } = getAuthConfig();
+  const { apiBaseUrl, redirectUri, clientId } = getAuthConfig();
   if (!apiBaseUrl) {
     throw new Error("Missing VITE_API_BASE env");
   }
+  const resolvedRedirectUri = resolveRedirectUri(redirectUri);
 
   console.log("[authService] exchangeCodeForToken called with:", { code: code ? "***" : "MISSING", state: state ? "***" : "MISSING", apiBaseUrl });
 
@@ -190,7 +250,11 @@ export const exchangeCodeForToken = async (code, state) => {
   const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/auth/callback`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code }),
+    body: JSON.stringify({
+      code,
+      redirect_uri: resolvedRedirectUri.toString(),
+      client_id: clientId,
+    }),
     credentials: "include", // Include cookies for server-side session
   });
 
