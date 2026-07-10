@@ -105,6 +105,12 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
     const [possiblePartners, setPossiblePartners] = useState([]);
     const [isLoadingPartners, setIsLoadingPartners] = useState(false);
     const [prefilledParentNames, setPrefilledParentNames] = useState({ father: '', mother: '' });
+    const [isResolvingSiblingParents, setIsResolvingSiblingParents] = useState(false);
+
+    const isSiblingWithoutKnownParents = isSiblingMode
+        && !isResolvingSiblingParents
+        && !formData.FatherId
+        && !formData.MotherId;
 
     // Initialize parent context and gender presets based on selected add action.
     useEffect(() => {
@@ -120,6 +126,7 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
             }));
 
             if (isSiblingMode && sourcePerson?.PersonID) {
+                setIsResolvingSiblingParents(true);
                 try {
                     const [fatherId, motherId] = await Promise.all([
                         getFather(sourcePerson.PersonID),
@@ -151,8 +158,14 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
                     return;
                 } catch (err) {
                     console.error('Error loading sibling parent context:', err);
+                } finally {
+                    if (!isCancelled) {
+                        setIsResolvingSiblingParents(false);
+                    }
                 }
             }
+
+            setIsResolvingSiblingParents(false);
 
             if (parentPerson) {
                 if (parentPerson.PersonIsMale) {
@@ -422,6 +435,11 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
             return;
         }
 
+        if (isSiblingWithoutKnownParents) {
+            setError('Broer/Zus toevoegen is niet mogelijk: geselecteerde persoon heeft geen bekende vader en moeder.');
+            return;
+        }
+
         setIsSaving(true);
         setError(null);
 
@@ -481,6 +499,12 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
 
             {error && (
                 <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>
+            )}
+
+            {isSiblingWithoutKnownParents && (
+                <Alert severity="warning" sx={{ mb: 1 }}>
+                    Broer/Zus toevoegen is geblokkeerd: er zijn geen bekende ouders om de relatie op te baseren.
+                </Alert>
             )}
 
             <TextField
