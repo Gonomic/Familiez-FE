@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
+import { calculateDisplayAge } from './personAgeUtils';
 
 /**
  * PersonTriangle Component
@@ -110,27 +111,10 @@ const PersonTriangle = ({
         return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
     };
     
-    // Calculate age
-    const calculateAge = () => {
-        if (!person.PersonDateOfBirth) return null;
-        
-        const birthDate = new Date(person.PersonDateOfBirth);
-        const endDate = person.PersonDateOfDeath ? new Date(person.PersonDateOfDeath) : new Date();
-        
-        let age = endDate.getFullYear() - birthDate.getFullYear();
-        const monthDiff = endDate.getMonth() - birthDate.getMonth();
-        
-        if (monthDiff < 0 || (monthDiff === 0 && endDate.getDate() < birthDate.getDate())) {
-            age--;
-        }
-        
-        return age >= 0 ? age : null;
-    };
-
     const fullName = `${person.PersonGivvenName || ''} ${person.PersonFamilyName || ''}`.trim();
     const birthDate = person.PersonDateOfBirth || '';
     const deathDate = person.PersonDateOfDeath || '';
-    const age = calculateAge();
+    const age = calculateDisplayAge(person);
 
     useEffect(() => {
         if (!fullName) {
