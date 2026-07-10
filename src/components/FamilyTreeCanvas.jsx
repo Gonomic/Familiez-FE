@@ -1174,9 +1174,9 @@ const FamilyTreeCanvas = ({
     /**
      * Handle add person
      */
-    const handleAddPerson = (person) => {
+    const handleAddPerson = (person, relationAction) => {
         if (onAddPerson) {
-            onAddPerson(person);
+            onAddPerson(person, relationAction);
         }
     };
 
