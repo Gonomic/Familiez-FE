@@ -1086,15 +1086,34 @@ const FamilyTreeCanvas = ({
             minY = Math.min(minY, pos.y);
         });
 
-        // Symmetric horizontal alignment around root person for both ancestor and descendant sides.
-        const rootPos = positions.get(rootPersonId);
-        if (rootPos) {
-            const leftReach = Math.max(0, rootPos.x - minX);
-            const rightReach = Math.max(0, maxX - rootPos.x);
-            const halfSpan = Math.max(leftReach, rightReach);
-            const targetRootX = halfSpan + 200;
-            const shiftX = targetRootX - rootPos.x;
+        // Align the whole tree around the horizontal center of the widest generation.
+        const generationBounds = Array.from(generations.keys())
+            .map(gen => {
+                const ids = generations.get(gen) || [];
+                const xs = ids
+                    .map(pid => positions.get(pid)?.x)
+                    .filter(value => typeof value === 'number');
 
+                if (xs.length === 0) {
+                    return null;
+                }
+
+                const minXForGen = Math.min(...xs);
+                const maxXForGen = Math.max(...xs);
+                return {
+                    gen,
+                    minX: minXForGen,
+                    maxX: maxXForGen,
+                    centerX: (minXForGen + maxXForGen) / 2,
+                    span: maxXForGen - minXForGen,
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => b.span - a.span);
+
+        const referenceGeneration = generationBounds[0];
+        if (referenceGeneration) {
+            const shiftX = -referenceGeneration.centerX;
             positions.forEach((pos, pid) => {
                 positions.set(pid, { x: pos.x + shiftX, y: pos.y });
             });
@@ -1364,77 +1383,124 @@ const FamilyTreeCanvas = ({
             });
         });
 
-        // Parent-child connections
+        // Parent-child connections using grouped horizontal bus lines and vertical branches.
+        const parentChildGroups = new Map();
+
         parentsMap.forEach((parents, childId) => {
             const childPos = positions.get(childId);
             if (!childPos) {
                 return;
             }
 
-            const childTopY = childPos.y;
-            const childTopMiddleX = childPos.x;
-            const childBlueRightTopX = childPos.x - TRIANGLE_WIDTH / 2 + TRIANGLE_WIDTH * 0.1;
-            const childPinkLeftTopX = childPos.x + TRIANGLE_WIDTH / 2 - TRIANGLE_WIDTH * 0.1;
+            const fatherId = parents?.fatherId || null;
+            const motherId = parents?.motherId || null;
+            const fatherPos = fatherId ? positions.get(fatherId) : null;
+            const motherPos = motherId ? positions.get(motherId) : null;
+            const visibleParentIds = [];
 
-            const fatherId = parents.fatherId;
-            const motherId = parents.motherId;
-            const hasFather = Boolean(fatherId && positions.get(fatherId));
-            const hasMother = Boolean(motherId && positions.get(motherId));
+            if (fatherPos) {
+                visibleParentIds.push(fatherId);
+            }
+            if (motherPos) {
+                visibleParentIds.push(motherId);
+            }
 
-            // When father and mother are partners, draw one line from partner center to child top middle.
-            if (hasFather && hasMother) {
-                const pairKey = getPairKey(fatherId, motherId);
-                const partnerCenter = partnerCenters.get(pairKey);
+            if (visibleParentIds.length === 0) {
+                return;
+            }
 
-                if (partnerCenter) {
-                    parentChildLines.push(
-                        <line
-                            key={`parent-center-${pairKey}-${childId}`}
-                            x1={partnerCenter.x}
-                            y1={partnerCenter.y}
-                            x2={childTopMiddleX}
-                            y2={childTopY}
-                            stroke="#666666"
-                            strokeWidth="2"
-                            strokeDasharray="5,5"
-                        />
-                    );
+            const groupKey = visibleParentIds.length > 1
+                ? `pair-${Math.min(...visibleParentIds)}-${Math.max(...visibleParentIds)}`
+                : `single-${visibleParentIds[0]}`;
+
+            if (!parentChildGroups.has(groupKey)) {
+                parentChildGroups.set(groupKey, {
+                    parentIds: visibleParentIds,
+                    children: []
+                });
+            }
+
+            parentChildGroups.get(groupKey).children.push(childId);
+        });
+
+        parentChildGroups.forEach((group, groupKey) => {
+            const childPositions = group.children
+                .map(childId => positions.get(childId))
+                .filter(Boolean)
+                .sort((a, b) => a.x - b.x);
+
+            if (childPositions.length === 0) {
+                return;
+            }
+
+            const childTopY = Math.min(...childPositions.map(pos => pos.y));
+            const childConnectorXs = childPositions.map(pos => pos.x);
+            const busLeftX = Math.min(...childConnectorXs) - 24;
+            const busRightX = Math.max(...childConnectorXs) + 24;
+            const parentAnchorXs = [];
+            const parentAnchorYs = [];
+
+            group.parentIds.forEach(parentId => {
+                const parentPos = positions.get(parentId);
+                if (!parentPos) {
                     return;
                 }
+                parentAnchorXs.push(parentPos.x);
+                parentAnchorYs.push(parentPos.y + TRIANGLE_HEIGHT);
+            });
+
+            if (parentAnchorXs.length === 0) {
+                return;
             }
 
-            // Fallback/original rendering when there is not one matching parent pair center.
-            if (hasFather) {
-                const fatherPos = positions.get(fatherId);
-                parentChildLines.push(
-                    <line
-                        key={`father-${fatherId}-${childId}`}
-                        x1={fatherPos.x}
-                        y1={fatherPos.y + TRIANGLE_HEIGHT}
-                        x2={childBlueRightTopX}
-                        y2={childTopY}
-                        stroke="#2196F3"
-                        strokeWidth="2"
-                        strokeDasharray="5,5"
-                    />
-                );
-            }
+            const parentAnchorX = parentAnchorXs.length > 1
+                ? (parentAnchorXs[0] + parentAnchorXs[parentAnchorXs.length - 1]) / 2
+                : parentAnchorXs[0];
+            const parentAnchorY = parentAnchorYs.length > 1
+                ? (parentAnchorYs[0] + parentAnchorYs[parentAnchorYs.length - 1]) / 2
+                : parentAnchorYs[0];
+            const busY = Math.min(childTopY - 36, parentAnchorY + 90);
 
-            if (hasMother) {
-                const motherPos = positions.get(motherId);
+            parentChildLines.push(
+                <line
+                    key={`bus-${groupKey}`}
+                    x1={busLeftX}
+                    y1={busY}
+                    x2={busRightX}
+                    y2={busY}
+                    stroke="#666666"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                />
+            );
+
+            parentChildLines.push(
+                <line
+                    key={`parent-branch-${groupKey}`}
+                    x1={parentAnchorX}
+                    y1={parentAnchorY}
+                    x2={parentAnchorX}
+                    y2={busY}
+                    stroke="#666666"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                />
+            );
+
+            childPositions.forEach((childPos, index) => {
                 parentChildLines.push(
                     <line
-                        key={`mother-${motherId}-${childId}`}
-                        x1={motherPos.x}
-                        y1={motherPos.y + TRIANGLE_HEIGHT}
-                        x2={childPinkLeftTopX}
-                        y2={childTopY}
-                        stroke="#E91E63"
+                        key={`child-branch-${groupKey}-${index}`}
+                        x1={childPos.x}
+                        y1={busY}
+                        x2={childPos.x}
+                        y2={childPos.y}
+                        stroke="#666666"
                         strokeWidth="2"
-                        strokeDasharray="5,5"
+                        strokeLinecap="round"
                     />
                 );
-            }
+            });
         });
 
         return [...partnerLines, ...parentChildLines, ...partnerMarriageLabels, ...partnerDots];
