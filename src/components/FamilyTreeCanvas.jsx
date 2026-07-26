@@ -873,201 +873,72 @@ const FamilyTreeCanvas = ({
         const nonRootAncestors = ancestorGenerations.filter(gen => gen !== 0);
         const layoutGenerations = [...rootGenerations, ...descendantGenerations, ...nonRootAncestors];
 
+        const generationLayoutData = [];
+
         layoutGenerations.forEach((gen) => {
             const y = centerY - (gen * VERTICAL_GAP);
             const rawPersonIds = generations.get(gen) || [];
-            // Keep strict bloodline age ordering for descendants and generation 0.
-            // Ancestor generations still use child-anchor placement to stay visually connected.
             const preserveBloodlineOrder = gen <= 0;
             const personIds = preserveBloodlineOrder ? getGroupedAndSortedIds(rawPersonIds, gen) : rawPersonIds;
             const blocks = createBlocks(personIds, gen, preserveBloodlineOrder);
+            const span = blocks.reduce((sum, block) => sum + block.width, 0)
+                + Math.max(0, blocks.length - 1) * HORIZONTAL_GAP;
+
+            generationLayoutData.push({ gen, y, blocks, span });
+        });
+
+        const maxGenerationSpan = Math.max(...generationLayoutData.map(item => item.span), 1);
+
+        generationLayoutData.forEach(({ gen, y, blocks }) => {
             const partnerCenterMap = new Map();
-
-            // Determine preferred center for each block.
-            
-            // For descendants without parent anchors, we need to center them symmetrically around x=0.
-            // First pass: determine which blocks have parent anchors.
-            const blockAnchorInfo = blocks.map((block, index) => {
-                if (preserveBloodlineOrder && gen < 0) {
-                    // Descendants: try to find parent anchors
-                    const parentAnchors = [];
-                    const seenParents = new Set();
-
-                    const anchorOwnerId = block.primaryMember || block.members[0];
-                    const parents = parentsMap.get(anchorOwnerId);
-                    const parentIds = [parents?.fatherId, parents?.motherId].filter(Boolean);
-
-                    parentIds.forEach(parentId => {
-                        if (seenParents.has(parentId)) {
-                            return;
-                        }
-                        const anchor = getParentAnchor(parentId, gen + 1);
-                        if (anchor !== null) {
-                            parentAnchors.push(anchor);
-                            seenParents.add(parentId);
-                        }
-                    });
-
-                    return {
-                        block,
-                        index,
-                        hasAnchor: parentAnchors.length > 0,
-                        anchor: parentAnchors.length > 0 ? parentAnchors.reduce((sum, x) => sum + x, 0) / parentAnchors.length : null
-                    };
-                }
-                return { block, index, hasAnchor: false, anchor: null };
-            });
-
-            // For descendants without anchors, calculate centered positioning
-            if (preserveBloodlineOrder && gen < 0) {
-                const noAnchorBlocks = blockAnchorInfo.filter(info => !info.hasAnchor);
-                
-                if (noAnchorBlocks.length > 0) {
-                    // Calculate total width of blocks without anchors
-                    const totalWidth = noAnchorBlocks.reduce((sum, info) => sum + info.block.width, 0) 
-                        + (noAnchorBlocks.length - 1) * HORIZONTAL_GAP;
-                    const startX = -totalWidth / 2;
-
-                    // Assign centered preferredCenter values
-                    noAnchorBlocks.forEach((info, idx) => {
-                        const blockStartX = startX + idx * (TRIANGLE_WIDTH + HORIZONTAL_GAP);
-                        info.block.preferredCenter = blockStartX + info.block.width / 2;
-                    });
-                }
-
-                // Assign anchored positions
-                blockAnchorInfo.forEach(info => {
-                    if (info.hasAnchor) {
-                        info.block.preferredCenter = info.anchor;
-                    }
-                });
-            }
-
-            // Regular preferred center determination for non-descendants or non-preserveBloodlineOrder
-            blocks.forEach((block, index) => {
-                if (preserveBloodlineOrder) {
-                    // Already handled above for descendants
-                    if (gen < 0) return;
-                    
-                    // For generation 0, align to known parent anchors when available
-                    const parentAnchors = [];
-                    const seenParents = new Set();
-
-                    const anchorOwnerId = block.primaryMember || block.members[0];
-                    const parents = parentsMap.get(anchorOwnerId);
-                    const parentIds = [parents?.fatherId, parents?.motherId].filter(Boolean);
-
-                    parentIds.forEach(parentId => {
-                        if (seenParents.has(parentId)) {
-                            return;
-                        }
-                        const anchor = getParentAnchor(parentId, gen + 1);
-                        if (anchor !== null) {
-                            parentAnchors.push(anchor);
-                            seenParents.add(parentId);
-                        }
-                    });
-
-                    if (parentAnchors.length > 0) {
-                        block.preferredCenter = parentAnchors.reduce((sum, x) => sum + x, 0) / parentAnchors.length;
-                    } else {
-                        block.preferredCenter = index * (TRIANGLE_WIDTH + HORIZONTAL_GAP);
-                    }
-                    return;
-                }
-
-                const childAnchors = [];
-                const seenChildren = new Set();
-
-                block.members.forEach(parentId => {
-                    const children = parentToChildren.get(parentId) || [];
-                    children.forEach(childId => {
-                        if (seenChildren.has(childId)) {
-                            return;
-                        }
-                        const anchor = getChildAnchor(childId, gen - 1);
-                        if (anchor !== null) {
-                            childAnchors.push(anchor);
-                            seenChildren.add(childId);
-                        }
-                    });
-                });
-
-                if (childAnchors.length > 0) {
-                    block.preferredCenter = childAnchors.reduce((sum, x) => sum + x, 0) / childAnchors.length;
-                } else {
-                    block.preferredCenter = index * (TRIANGLE_WIDTH + HORIZONTAL_GAP);
-                }
-            });
-
-            // When bloodline order is fixed, never re-sort by anchors afterwards.
-            if (!preserveBloodlineOrder) {
-                blocks.sort((a, b) => a.preferredCenter - b.preferredCenter);
-            }
-
-            // Layout blocks in a generation
-            // For descendants: place sequentially, then center around the anchor person's x-position.
-            // For others: use block preferredCenter with overlap resolution.
-            
-            if (gen < 0) {
-                const rootCenterX = positions.get(rootPersonId)?.x ?? 0;
-
-                blocks.forEach((block, index) => {
-                    const anchorOwnerId = block.primaryMember || block.members[0];
-                    const parents = parentsMap.get(anchorOwnerId);
-                    const parentIds = [parents?.fatherId, parents?.motherId].filter(Boolean);
-                    const parentAnchors = parentIds
-                        .map(parentId => getParentAnchor(parentId, gen + 1))
-                        .filter(anchor => anchor !== null);
-
-                    if (parentAnchors.length > 0) {
-                        block.preferredCenter = parentAnchors.reduce((sum, x) => sum + x, 0) / parentAnchors.length;
-                    } else {
-                        block.preferredCenter = rootCenterX + (index - (blocks.length - 1) / 2) * (TRIANGLE_WIDTH + HORIZONTAL_GAP);
-                    }
-                });
-
-                blocks.sort((a, b) => a.preferredCenter - b.preferredCenter);
-            }
-
-            // NON-DESCENDANTS and descendant fallback placement based on preferredCenter.
-            let previousRight = null;
-            blocks.forEach((block, index) => {
-                const halfWidth = block.width / 2;
-                let leftEdge = block.preferredCenter - halfWidth;
-
-                if (index === 0) {
-                    if (leftEdge < 0) {
-                        leftEdge = 0;
-                    }
-                } else {
-                    const minLeft = previousRight + HORIZONTAL_GAP;
-                    if (leftEdge < minLeft) {
-                        leftEdge = minLeft;
-                    }
-                }
-
-                block.leftEdge = leftEdge;
-                block.rightEdge = leftEdge + block.width;
-                block.center = leftEdge + halfWidth;
-                previousRight = block.rightEdge;
-            });
-
-            const centeredBlocks = [...blocks].sort((a, b) => a.center - b.center);
-            const middleIndex = Math.floor((centeredBlocks.length - 1) / 2);
-            const referenceCenter = centeredBlocks.length % 2 === 0
-                ? (centeredBlocks[middleIndex].center + centeredBlocks[middleIndex + 1].center) / 2
-                : centeredBlocks[middleIndex].center;
-            const generationShift = -referenceCenter;
+            const anchorValues = [];
 
             blocks.forEach(block => {
-                block.leftEdge += generationShift;
-                block.rightEdge += generationShift;
-                block.center += generationShift;
-                block.preferredCenter += generationShift;
+                const anchorOwnerId = block.primaryMember || block.members[0];
+                const parents = parentsMap.get(anchorOwnerId);
+                const parentIds = [parents?.fatherId, parents?.motherId].filter(Boolean);
+
+                if (gen < 0) {
+                    parentIds.forEach(parentId => {
+                        const anchor = getParentAnchor(parentId, gen + 1);
+                        if (anchor !== null) {
+                            anchorValues.push(anchor);
+                        }
+                    });
+                } else if (gen === 0) {
+                    parentIds.forEach(parentId => {
+                        const anchor = getParentAnchor(parentId, gen + 1);
+                        if (anchor !== null) {
+                            anchorValues.push(anchor);
+                        }
+                    });
+                } else {
+                    block.members.forEach(parentId => {
+                        const children = parentToChildren.get(parentId) || [];
+                        children.forEach(childId => {
+                            const anchor = getChildAnchor(childId, gen - 1);
+                            if (anchor !== null) {
+                                anchorValues.push(anchor);
+                            }
+                        });
+                    });
+                }
             });
 
-            // Assign final node positions
+            const anchorCenter = anchorValues.length > 0
+                ? anchorValues.reduce((sum, value) => sum + value, 0) / anchorValues.length
+                : 0;
+            const availableWidth = maxGenerationSpan;
+            const slotCount = Math.max(1, blocks.length);
+            const slotWidth = availableWidth / slotCount;
+
+            blocks.forEach((block, index) => {
+                const slotCenter = anchorCenter - availableWidth / 2 + (index + 0.5) * slotWidth;
+                block.leftEdge = slotCenter - block.width / 2;
+                block.rightEdge = block.leftEdge + block.width;
+                block.center = slotCenter;
+            });
+
             blocks.forEach(block => {
                 if (block.type === 'single') {
                     positions.set(block.members[0], { x: block.center, y });
