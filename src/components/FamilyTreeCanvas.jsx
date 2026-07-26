@@ -1010,48 +1010,62 @@ const FamilyTreeCanvas = ({
             // For others: use block preferredCenter with overlap resolution.
             
             if (gen < 0) {
-                // DESCENDANTS: Simple sequential placement for gelijkelijke verdeling
-                let nextX = 0;
-                blocks.forEach((block) => {
-                    block.leftEdge = nextX;
-                    block.rightEdge = nextX + block.width;
-                    block.center = (block.leftEdge + block.rightEdge) / 2;
-                    nextX = block.rightEdge + HORIZONTAL_GAP;
-                });
-
-                // Center all blocks symmetrically around the anchor person's x-position.
-                const totalSpan = blocks[blocks.length - 1].rightEdge;
                 const rootCenterX = positions.get(rootPersonId)?.x ?? 0;
-                const centerShift = rootCenterX - (totalSpan / 2);
-                blocks.forEach((block) => {
-                    block.leftEdge += centerShift;
-                    block.rightEdge += centerShift;
-                    block.center += centerShift;
-                });
-            } else {
-                // NON-DESCENDANTS: Standard overlap resolution based on preferredCenter
-                let previousRight = null;
+
                 blocks.forEach((block, index) => {
-                    const halfWidth = block.width / 2;
-                    let leftEdge = block.preferredCenter - halfWidth;
+                    const anchorOwnerId = block.primaryMember || block.members[0];
+                    const parents = parentsMap.get(anchorOwnerId);
+                    const parentIds = [parents?.fatherId, parents?.motherId].filter(Boolean);
+                    const parentAnchors = parentIds
+                        .map(parentId => getParentAnchor(parentId, gen + 1))
+                        .filter(anchor => anchor !== null);
 
-                    if (index === 0) {
-                        if (leftEdge < 0) {
-                            leftEdge = 0;
-                        }
+                    if (parentAnchors.length > 0) {
+                        block.preferredCenter = parentAnchors.reduce((sum, x) => sum + x, 0) / parentAnchors.length;
                     } else {
-                        const minLeft = previousRight + HORIZONTAL_GAP;
-                        if (leftEdge < minLeft) {
-                            leftEdge = minLeft;
-                        }
+                        block.preferredCenter = rootCenterX + (index - (blocks.length - 1) / 2) * (TRIANGLE_WIDTH + HORIZONTAL_GAP);
                     }
-
-                    block.leftEdge = leftEdge;
-                    block.rightEdge = leftEdge + block.width;
-                    block.center = leftEdge + halfWidth;
-                    previousRight = block.rightEdge;
                 });
+
+                blocks.sort((a, b) => a.preferredCenter - b.preferredCenter);
             }
+
+            // NON-DESCENDANTS and descendant fallback placement based on preferredCenter.
+            let previousRight = null;
+            blocks.forEach((block, index) => {
+                const halfWidth = block.width / 2;
+                let leftEdge = block.preferredCenter - halfWidth;
+
+                if (index === 0) {
+                    if (leftEdge < 0) {
+                        leftEdge = 0;
+                    }
+                } else {
+                    const minLeft = previousRight + HORIZONTAL_GAP;
+                    if (leftEdge < minLeft) {
+                        leftEdge = minLeft;
+                    }
+                }
+
+                block.leftEdge = leftEdge;
+                block.rightEdge = leftEdge + block.width;
+                block.center = leftEdge + halfWidth;
+                previousRight = block.rightEdge;
+            });
+
+            const centeredBlocks = [...blocks].sort((a, b) => a.center - b.center);
+            const middleIndex = Math.floor((centeredBlocks.length - 1) / 2);
+            const referenceCenter = centeredBlocks.length % 2 === 0
+                ? (centeredBlocks[middleIndex].center + centeredBlocks[middleIndex + 1].center) / 2
+                : centeredBlocks[middleIndex].center;
+            const generationShift = -referenceCenter;
+
+            blocks.forEach(block => {
+                block.leftEdge += generationShift;
+                block.rightEdge += generationShift;
+                block.center += generationShift;
+                block.preferredCenter += generationShift;
+            });
 
             // Assign final node positions
             blocks.forEach(block => {
@@ -1086,40 +1100,7 @@ const FamilyTreeCanvas = ({
             minY = Math.min(minY, pos.y);
         });
 
-        // Align the whole tree around the horizontal center of the widest generation.
-        const generationBounds = Array.from(generations.keys())
-            .map(gen => {
-                const ids = generations.get(gen) || [];
-                const xs = ids
-                    .map(pid => positions.get(pid)?.x)
-                    .filter(value => typeof value === 'number');
-
-                if (xs.length === 0) {
-                    return null;
-                }
-
-                const minXForGen = Math.min(...xs);
-                const maxXForGen = Math.max(...xs);
-                return {
-                    gen,
-                    minX: minXForGen,
-                    maxX: maxXForGen,
-                    centerX: (minXForGen + maxXForGen) / 2,
-                    span: maxXForGen - minXForGen,
-                };
-            })
-            .filter(Boolean)
-            .sort((a, b) => b.span - a.span);
-
-        const referenceGeneration = generationBounds[0];
-        if (referenceGeneration) {
-            const shiftX = -referenceGeneration.centerX;
-            positions.forEach((pos, pid) => {
-                positions.set(pid, { x: pos.x + shiftX, y: pos.y });
-            });
-            maxX += shiftX;
-            minX += shiftX;
-        }
+        // The per-generation centering above already ensures the tree is horizontally centered.
         
         const CANVAS_PADDING = 200; // Extra padding around the tree
         const centeredRootPos = positions.get(rootPersonId);
@@ -1437,29 +1418,16 @@ const FamilyTreeCanvas = ({
             const childConnectorXs = childPositions.map(pos => pos.x);
             const busLeftX = Math.min(...childConnectorXs) - 24;
             const busRightX = Math.max(...childConnectorXs) + 24;
-            const parentAnchorXs = [];
-            const parentAnchorYs = [];
+            const parentPositions = group.parentIds
+                .map(parentId => positions.get(parentId))
+                .filter(Boolean);
 
-            group.parentIds.forEach(parentId => {
-                const parentPos = positions.get(parentId);
-                if (!parentPos) {
-                    return;
-                }
-                parentAnchorXs.push(parentPos.x);
-                parentAnchorYs.push(parentPos.y + TRIANGLE_HEIGHT);
-            });
-
-            if (parentAnchorXs.length === 0) {
+            if (parentPositions.length === 0) {
                 return;
             }
 
-            const parentAnchorX = parentAnchorXs.length > 1
-                ? (parentAnchorXs[0] + parentAnchorXs[parentAnchorXs.length - 1]) / 2
-                : parentAnchorXs[0];
-            const parentAnchorY = parentAnchorYs.length > 1
-                ? (parentAnchorYs[0] + parentAnchorYs[parentAnchorYs.length - 1]) / 2
-                : parentAnchorYs[0];
-            const busY = Math.min(childTopY - 36, parentAnchorY + 90);
+            const parentBottomYs = parentPositions.map(parentPos => parentPos.y + TRIANGLE_HEIGHT);
+            const busY = Math.min(childTopY - 36, Math.min(...parentBottomYs) + 90);
 
             parentChildLines.push(
                 <line
@@ -1474,18 +1442,74 @@ const FamilyTreeCanvas = ({
                 />
             );
 
-            parentChildLines.push(
-                <line
-                    key={`parent-branch-${groupKey}`}
-                    x1={parentAnchorX}
-                    y1={parentAnchorY}
-                    x2={parentAnchorX}
-                    y2={busY}
-                    stroke="#666666"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                />
-            );
+            const busCenterX = (busLeftX + busRightX) / 2;
+            const parentAnchorX = parentPositions.length > 1
+                ? (parentPositions[0].x + parentPositions[parentPositions.length - 1].x) / 2
+                : parentPositions[0].x;
+            const parentAnchorY = parentPositions.length > 1
+                ? (parentPositions[0].y + TRIANGLE_HEIGHT + parentPositions[parentPositions.length - 1].y + TRIANGLE_HEIGHT) / 2
+                : parentPositions[0].y + TRIANGLE_HEIGHT;
+            const connectorY = busY - 28;
+            const hasDirectVerticalAccess = parentAnchorX >= busLeftX && parentAnchorX <= busRightX;
+            const busTouchX = hasDirectVerticalAccess
+                ? parentAnchorX
+                : (parentAnchorX < busLeftX
+                    ? busLeftX + 18
+                    : busRightX - 18);
+
+            if (hasDirectVerticalAccess) {
+                parentChildLines.push(
+                    <line
+                        key={`parent-branch-${groupKey}`}
+                        x1={parentAnchorX}
+                        y1={parentAnchorY}
+                        x2={parentAnchorX}
+                        y2={busY}
+                        stroke="#666666"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                    />
+                );
+            } else {
+                parentChildLines.push(
+                    <line
+                        key={`parent-branch-${groupKey}`}
+                        x1={parentAnchorX}
+                        y1={parentAnchorY}
+                        x2={parentAnchorX}
+                        y2={connectorY}
+                        stroke="#666666"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                    />
+                );
+
+                parentChildLines.push(
+                    <line
+                        key={`parent-hint-${groupKey}`}
+                        x1={parentAnchorX}
+                        y1={connectorY}
+                        x2={busTouchX}
+                        y2={connectorY}
+                        stroke="#666666"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                    />
+                );
+
+                parentChildLines.push(
+                    <line
+                        key={`parent-bus-${groupKey}`}
+                        x1={busTouchX}
+                        y1={connectorY}
+                        x2={busTouchX}
+                        y2={busY}
+                        stroke="#666666"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                    />
+                );
+            }
 
             childPositions.forEach((childPos, index) => {
                 parentChildLines.push(
