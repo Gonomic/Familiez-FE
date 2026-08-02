@@ -10,6 +10,8 @@ import { NO_CONNECTION_ERROR_TEXT } from '../constants/errorMessages';
 const MIN_SCALE = 0.4;
 const MAX_SCALE = 2.5;
 const SHOW_NON_PARTNER_PARENTS_KEY = 'familiez_show_non_partner_parents';
+const ENABLE_ANCHOR_DRIVEN_LAYOUT = false;
+const ENABLE_BUS_LANE_SEPARATION = true;
 
 /**
  * FamilyTreeCanvas Component
@@ -667,12 +669,34 @@ const FamilyTreeCanvas = ({
             return parentPos ? parentPos.x : null;
         };
 
-        // Group bloodline persons under their visible upper parent-pair and sort oldest->youngest.
-        // This is used for descendants and generation 0, so sibling order stays stable within a generation.
+        // Group descendants under visible upper parent groups and order groups left->right
+        // based on already placed upper-generation anchors. Within a group, keep oldest->youngest.
         const getGroupedAndSortedIds = (personIds, gen) => {
             const groups = new Map();
             const ungrouped = [];
             const parentsInPrevGen = new Set(generations.get(gen + 1) || []);
+            const upperGenIds = [...(generations.get(gen + 1) || [])];
+            const upperParentOrder = new Map();
+
+            upperGenIds
+                .sort((aId, bId) => {
+                    const anchorA = getParentAnchor(aId, gen + 1);
+                    const anchorB = getParentAnchor(bId, gen + 1);
+
+                    if (anchorA !== null && anchorB !== null && anchorA !== anchorB) {
+                        return anchorA - anchorB;
+                    }
+                    if (anchorA !== null && anchorB === null) {
+                        return -1;
+                    }
+                    if (anchorA === null && anchorB !== null) {
+                        return 1;
+                    }
+                    return aId - bId;
+                })
+                .forEach((parentId, index) => {
+                    upperParentOrder.set(parentId, index);
+                });
 
             const createPairKey = (aId, bId) => {
                 const left = Math.min(aId, bId);
@@ -690,37 +714,44 @@ const FamilyTreeCanvas = ({
             };
 
             const resolveGroup = (fatherId, motherId) => {
-                const fatherInPrev = Boolean(fatherId && parentsInPrevGen.has(fatherId));
-                const motherInPrev = Boolean(motherId && parentsInPrevGen.has(motherId));
+                const visibleParentIds = [];
+                const isDescendantGen = gen < 0;
 
-                // Both parents present in upper generation: group under both, even if no active partnership.
-                if (fatherInPrev && motherInPrev) {
-                    return {
-                        key: createPairKey(fatherId, motherId),
-                        parentIds: [fatherId, motherId],
-                    };
+                const isVisibleParentForGrouping = (parentId) => {
+                    if (!parentId) {
+                        return false;
+                    }
+
+                    if (isDescendantGen) {
+                        return getParentAnchor(parentId, gen + 1) !== null;
+                    }
+
+                    return parentsInPrevGen.has(parentId);
+                };
+
+                if (isVisibleParentForGrouping(fatherId)) {
+                    visibleParentIds.push(fatherId);
+                }
+                if (isVisibleParentForGrouping(motherId)) {
+                    visibleParentIds.push(motherId);
                 }
 
-                const onlyParentId = fatherInPrev ? fatherId : (motherInPrev ? motherId : null);
-                if (!onlyParentId) {
+                if (visibleParentIds.length === 0) {
                     return null;
                 }
 
-                // If the visible parent belongs to an upper pair in this generation,
-                // place all their children (also one-parent linked) under that same pair.
-                const upperPartners = (partnersMap.get(onlyParentId) || [])
-                    .filter(pid => parentsInPrevGen.has(pid));
-
-                if (upperPartners.length > 0) {
+                if (visibleParentIds.length > 1) {
+                    const left = Math.min(...visibleParentIds);
+                    const right = Math.max(...visibleParentIds);
                     return {
-                        key: createPairKey(onlyParentId, upperPartners[0]),
-                        parentIds: [onlyParentId, upperPartners[0]],
+                        key: createPairKey(left, right),
+                        parentIds: [left, right],
                     };
                 }
 
                 return {
-                    key: createSingleKey(onlyParentId),
-                    parentIds: [onlyParentId],
+                    key: createSingleKey(visibleParentIds[0]),
+                    parentIds: [visibleParentIds[0]],
                 };
             };
 
@@ -741,35 +772,25 @@ const FamilyTreeCanvas = ({
             groups.forEach(group => {
                 group.childIds.sort((a, b) => sortByBirthDate(a, b));
 
-                const anchors = group.parentIds
-                    .map(parentId => getParentAnchor(parentId, gen + 1))
-                    .filter(anchor => anchor !== null);
+                const parentOrderValues = group.parentIds
+                    .map(parentId => upperParentOrder.get(parentId))
+                    .filter(order => typeof order === 'number');
 
-                if (anchors.length > 0) {
-                    group.anchor = anchors.reduce((sum, x) => sum + x, 0) / anchors.length;
+                if (parentOrderValues.length > 0) {
+                    group.parentOrder = Math.min(...parentOrderValues);
                 } else {
-                    group.anchor = null;
+                    group.parentOrder = Number.MAX_SAFE_INTEGER;
                 }
             });
 
             const sortedGroups = Array.from(groups.values()).sort((a, b) => {
-                if (a.anchor !== null && b.anchor !== null) {
-                    if (a.anchor !== b.anchor) {
-                        return a.anchor - b.anchor;
-                    }
-                } else if (a.anchor !== null) {
-                    return -1;
-                } else if (b.anchor !== null) {
-                    return 1;
+                if (a.parentOrder !== b.parentOrder) {
+                    return a.parentOrder - b.parentOrder;
                 }
 
-                const aFirst = a.childIds[0];
-                const bFirst = b.childIds[0];
-                const byBirth = sortByBirthDate(aFirst, bFirst);
-                if (byBirth !== 0) {
-                    return byBirth;
-                }
-                return aFirst - bFirst;
+                const aParentMin = Math.min(...a.parentIds);
+                const bParentMin = Math.min(...b.parentIds);
+                return aParentMin - bParentMin;
             });
 
             const result = [];
@@ -874,42 +895,52 @@ const FamilyTreeCanvas = ({
         const layoutGenerations = [...rootGenerations, ...descendantGenerations, ...nonRootAncestors];
 
         const generationLayoutData = [];
+        const BLOCK_MIN_GAP = HORIZONTAL_GAP;
 
+        // Pass 1: determine a stable maximum generation width based on slot counts only.
         layoutGenerations.forEach((gen) => {
             const y = centerY - (gen * VERTICAL_GAP);
             const rawPersonIds = generations.get(gen) || [];
-            const preserveBloodlineOrder = gen <= 0;
-            const personIds = preserveBloodlineOrder ? getGroupedAndSortedIds(rawPersonIds, gen) : rawPersonIds;
-            const blocks = createBlocks(personIds, gen, preserveBloodlineOrder);
-            const span = blocks.reduce((sum, block) => sum + block.width, 0)
-                + Math.max(0, blocks.length - 1) * HORIZONTAL_GAP;
-
-            generationLayoutData.push({ gen, y, blocks, span });
+            const provisionalBlocks = createBlocks(rawPersonIds, gen, false);
+            const slotCount = provisionalBlocks.length;
+            const span = slotCount > 0
+                ? (slotCount * COUPLE_WIDTH) + ((slotCount - 1) * HORIZONTAL_GAP)
+                : 0;
+            generationLayoutData.push({ gen, y, span });
         });
 
-        const maxGenerationSpan = Math.max(...generationLayoutData.map(item => item.span), 1);
+        const maxGenerationSpan = Math.max(...generationLayoutData.map(item => item.span), COUPLE_WIDTH);
 
-        generationLayoutData.forEach(({ gen, y, blocks }) => {
+        // Pass 2: place generations sequentially so descendants can use already-placed parent anchors.
+        generationLayoutData.forEach(({ gen, y }) => {
+            const rawPersonIds = generations.get(gen) || [];
+            const preserveBloodlineOrder = gen < 0;
+            const personIds = preserveBloodlineOrder ? getGroupedAndSortedIds(rawPersonIds, gen) : rawPersonIds;
+            const blocks = createBlocks(personIds, gen, preserveBloodlineOrder);
             const partnerCenterMap = new Map();
-            const anchorValues = [];
+            const isBloodlineMember = (personId) => {
+                const parents = parentsMap.get(personId);
+                if (!parents) {
+                    return false;
+                }
 
-            blocks.forEach(block => {
-                const anchorOwnerId = block.primaryMember || block.members[0];
-                const parents = parentsMap.get(anchorOwnerId);
-                const parentIds = [parents?.fatherId, parents?.motherId].filter(Boolean);
+                const fatherInUpperGen = Boolean(parents.fatherId && (generations.get(gen + 1) || []).includes(parents.fatherId));
+                const motherInUpperGen = Boolean(parents.motherId && (generations.get(gen + 1) || []).includes(parents.motherId));
+                return fatherInUpperGen || motherInUpperGen;
+            };
 
-                if (gen < 0) {
+            const getBlockAnchor = (block) => {
+                const anchors = [];
+
+                if (gen <= 0) {
+                    const anchorOwnerId = block.primaryMember || block.members[0];
+                    const parents = parentsMap.get(anchorOwnerId);
+                    const parentIds = [parents?.fatherId, parents?.motherId].filter(Boolean);
+
                     parentIds.forEach(parentId => {
                         const anchor = getParentAnchor(parentId, gen + 1);
                         if (anchor !== null) {
-                            anchorValues.push(anchor);
-                        }
-                    });
-                } else if (gen === 0) {
-                    parentIds.forEach(parentId => {
-                        const anchor = getParentAnchor(parentId, gen + 1);
-                        if (anchor !== null) {
-                            anchorValues.push(anchor);
+                            anchors.push(anchor);
                         }
                     });
                 } else {
@@ -918,28 +949,103 @@ const FamilyTreeCanvas = ({
                         children.forEach(childId => {
                             const anchor = getChildAnchor(childId, gen - 1);
                             if (anchor !== null) {
-                                anchorValues.push(anchor);
+                                anchors.push(anchor);
                             }
                         });
                     });
                 }
+
+                if (anchors.length === 0) {
+                    return null;
+                }
+
+                return anchors.reduce((sum, value) => sum + value, 0) / anchors.length;
+            };
+
+            const positionedBlocks = blocks.map((block, index) => ({
+                ...block,
+                orderIndex: index,
+                rawAnchor: getBlockAnchor(block),
+                desiredCenter: null,
+                center: null,
+                leftEdge: null,
+                rightEdge: null
+            }));
+
+            const isDescendantGeneration = gen < 0;
+            const getLineageAnchor = (block) => {
+                const anchorOwnerId = block.primaryMember || block.members[0];
+
+                if (isDescendantGeneration) {
+                    const parents = parentsMap.get(anchorOwnerId);
+                    const fatherAnchor = parents?.fatherId ? getParentAnchor(parents.fatherId, gen + 1) : null;
+                    const motherAnchor = parents?.motherId ? getParentAnchor(parents.motherId, gen + 1) : null;
+                    const anchors = [fatherAnchor, motherAnchor].filter(anchor => anchor !== null);
+
+                    if (anchors.length > 0) {
+                        return Math.min(...anchors);
+                    }
+                }
+
+                return block.rawAnchor;
+            };
+
+            positionedBlocks.forEach(block => {
+                block.lineageAnchor = getLineageAnchor(block);
             });
 
-            const anchorCenter = anchorValues.length > 0
-                ? anchorValues.reduce((sum, value) => sum + value, 0) / anchorValues.length
+            const anchoredValues = positionedBlocks
+                .map(block => block.lineageAnchor)
+                .filter(anchor => anchor !== null);
+
+            const anchorCenter = anchoredValues.length > 0
+                ? anchoredValues.reduce((sum, value) => sum + value, 0) / anchoredValues.length
                 : 0;
-            const availableWidth = maxGenerationSpan;
-            const slotCount = Math.max(1, blocks.length);
-            const slotWidth = availableWidth / slotCount;
 
-            blocks.forEach((block, index) => {
-                const slotCenter = anchorCenter - availableWidth / 2 + (index + 0.5) * slotWidth;
-                block.leftEdge = slotCenter - block.width / 2;
-                block.rightEdge = block.leftEdge + block.width;
-                block.center = slotCenter;
-            });
+            if (ENABLE_ANCHOR_DRIVEN_LAYOUT) {
+                positionedBlocks.forEach((block, index) => {
+                    block.desiredCenter = block.lineageAnchor !== null
+                        ? block.lineageAnchor
+                        : anchorCenter + (index - (positionedBlocks.length - 1) / 2) * (TRIANGLE_WIDTH + HORIZONTAL_GAP);
+                });
 
-            blocks.forEach(block => {
+                let previousRightEdge = null;
+                positionedBlocks.forEach(block => {
+                    const minCenter = previousRightEdge === null
+                        ? Number.NEGATIVE_INFINITY
+                        : previousRightEdge + BLOCK_MIN_GAP + (block.width / 2);
+
+                    block.center = Math.max(block.desiredCenter, minCenter);
+                    block.leftEdge = block.center - (block.width / 2);
+                    block.rightEdge = block.center + (block.width / 2);
+                    previousRightEdge = block.rightEdge;
+                });
+
+                if (positionedBlocks.length > 0) {
+                    const currentCenter = (positionedBlocks[0].leftEdge + positionedBlocks[positionedBlocks.length - 1].rightEdge) / 2;
+                    const shiftDelta = anchorCenter - currentCenter;
+
+                    positionedBlocks.forEach(block => {
+                        block.center += shiftDelta;
+                        block.leftEdge += shiftDelta;
+                        block.rightEdge += shiftDelta;
+                    });
+                }
+            } else {
+                const availableWidth = maxGenerationSpan;
+                const slotCount = Math.max(1, positionedBlocks.length);
+                const slotWidth = availableWidth / slotCount;
+                const startX = -availableWidth / 2;
+
+                positionedBlocks.forEach((block, index) => {
+                    const slotCenter = startX + (index + 0.5) * slotWidth;
+                    block.center = slotCenter;
+                    block.leftEdge = slotCenter - (block.width / 2);
+                    block.rightEdge = slotCenter + (block.width / 2);
+                });
+            }
+
+            positionedBlocks.forEach(block => {
                 if (block.type === 'single') {
                     positions.set(block.members[0], { x: block.center, y });
                 } else {
@@ -1275,6 +1381,12 @@ const FamilyTreeCanvas = ({
             parentChildGroups.get(groupKey).children.push(childId);
         });
 
+        const BUS_LANE_STEP = 24;
+        const BUS_OVERLAP_MARGIN = 36;
+        const BUS_SIDE_PADDING = 10;
+
+        const groupLayouts = [];
+
         parentChildGroups.forEach((group, groupKey) => {
             const childPositions = group.children
                 .map(childId => positions.get(childId))
@@ -1287,8 +1399,8 @@ const FamilyTreeCanvas = ({
 
             const childTopY = Math.min(...childPositions.map(pos => pos.y));
             const childConnectorXs = childPositions.map(pos => pos.x);
-            const busLeftX = Math.min(...childConnectorXs) - 24;
-            const busRightX = Math.max(...childConnectorXs) + 24;
+            const busLeftX = Math.min(...childConnectorXs) - BUS_SIDE_PADDING;
+            const busRightX = Math.max(...childConnectorXs) + BUS_SIDE_PADDING;
             const parentPositions = group.parentIds
                 .map(parentId => positions.get(parentId))
                 .filter(Boolean);
@@ -1298,7 +1410,59 @@ const FamilyTreeCanvas = ({
             }
 
             const parentBottomYs = parentPositions.map(parentPos => parentPos.y + TRIANGLE_HEIGHT);
-            const busY = Math.min(childTopY - 36, Math.min(...parentBottomYs) + 90);
+            const baseBusY = Math.min(childTopY - 36, Math.min(...parentBottomYs) + 90);
+            const parentAnchorX = parentPositions.length > 1
+                ? (parentPositions[0].x + parentPositions[parentPositions.length - 1].x) / 2
+                : parentPositions[0].x;
+
+            groupLayouts.push({
+                group,
+                groupKey,
+                childPositions,
+                busLeftX,
+                busRightX,
+                parentPositions,
+                parentBottomYs,
+                baseBusY,
+                parentAnchorX,
+                lane: 0,
+            });
+        });
+
+        const placedLayouts = [];
+        groupLayouts
+            .sort((a, b) => {
+                if (a.baseBusY !== b.baseBusY) {
+                    return a.baseBusY - b.baseBusY;
+                }
+                return a.parentAnchorX - b.parentAnchorX;
+            })
+            .forEach(layout => {
+                const occupiedLanes = new Set();
+
+                placedLayouts.forEach(existing => {
+                    const sameBand = Math.abs(existing.baseBusY - layout.baseBusY) < BUS_LANE_STEP * 4;
+                    const overlapsX = !(
+                        layout.busRightX < (existing.busLeftX - BUS_OVERLAP_MARGIN) ||
+                        layout.busLeftX > (existing.busRightX + BUS_OVERLAP_MARGIN)
+                    );
+
+                    if (sameBand && overlapsX) {
+                        occupiedLanes.add(existing.lane);
+                    }
+                });
+
+                let lane = 0;
+                while (occupiedLanes.has(lane)) {
+                    lane += 1;
+                }
+
+                layout.lane = ENABLE_BUS_LANE_SEPARATION ? lane : 0;
+                placedLayouts.push(layout);
+            });
+
+        placedLayouts.forEach(({ group, groupKey, childPositions, busLeftX, busRightX, parentPositions, baseBusY, lane }) => {
+            const busY = baseBusY - (lane * BUS_LANE_STEP);
 
             parentChildLines.push(
                 <line
@@ -1313,7 +1477,6 @@ const FamilyTreeCanvas = ({
                 />
             );
 
-            const busCenterX = (busLeftX + busRightX) / 2;
             const parentAnchorX = parentPositions.length > 1
                 ? (parentPositions[0].x + parentPositions[parentPositions.length - 1].x) / 2
                 : parentPositions[0].x;
