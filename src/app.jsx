@@ -120,11 +120,17 @@ const AppContent = () => {
   const [personToAdd, setPersonToAdd] = useState(undefined);
   const [personToView, setPersonToView] = useState(null);
   const [personForFiles, setPersonForFiles] = useState(null);
+  const [personToBuildTree, setPersonToBuildTree] = useState(null);
   const [nbrOfParentGenerations, setNbrOfParentGenerations] = useState(1);
   const [nbrOfChildGenerations, setNbrOfChildGenerations] = useState(1);
   const [treeRefreshTrigger, setTreeRefreshTrigger] = useState(0);
   const [lastAddedParentId, setLastAddedParentId] = useState(null);
   const autoTreeTokenRef = useRef('');
+
+  const normalizePersonId = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
 
   useEffect(() => {
     const applyAutoTreePreferencesAfterLogin = async () => {
@@ -194,25 +200,30 @@ const AppContent = () => {
     setPersonToAdd(undefined);
     setPersonToView(null);
     setPersonForFiles(null);
+    setPersonToBuildTree(null);
   };
 
   const handlePersonSelected = (person, parentGens, childGens) => {
+    setLastAddedParentId(null);
     setSelectedPerson(person);
     setNbrOfParentGenerations(parentGens);
     setNbrOfChildGenerations(childGens);
   };
 
   const handleEditPerson = (person) => {
+    setPersonToBuildTree(null);
     setPersonToEdit(person);
     setRightDrawerOpen(true);
   };
 
   const handleDeletePerson = (person) => {
+    setPersonToBuildTree(null);
     setPersonToDelete(person);
     setRightDrawerOpen(true);
   };
 
   const handleAddPerson = (person, relationAction) => {
+    setPersonToBuildTree(null);
     const resolvedAction = relationAction || (person ? 'child' : 'standalone');
     setPersonToAdd({
       contextPerson: person || null,
@@ -222,12 +233,30 @@ const AppContent = () => {
   };
 
   const handleViewPerson = (person) => {
+    setPersonToBuildTree(null);
     setPersonToView(person);
     setRightDrawerOpen(true);
   };
 
   const handleManageFiles = (person) => {
+    setPersonToBuildTree(null);
     setPersonForFiles(person);
+    setRightDrawerOpen(true);
+  };
+
+  const handleBuildTreeForPerson = (person) => {
+    const normalizedPersonId = normalizePersonId(person?.PersonID);
+    const normalizedPerson = normalizedPersonId
+      ? { ...person, PersonID: normalizedPersonId }
+      : null;
+
+    setPersonToEdit(null);
+    setPersonToDelete(null);
+    setPersonToAdd(undefined);
+    setPersonToView(null);
+    setPersonForFiles(null);
+    setLastAddedParentId(null);
+    setPersonToBuildTree(normalizedPerson);
     setRightDrawerOpen(true);
   };
 
@@ -245,6 +274,7 @@ const AppContent = () => {
     setPersonToAdd(undefined);
     setPersonToDelete(null);
     setPersonForFiles(null);
+    setPersonToBuildTree(null);
     setRightDrawerOpen(false);
   };
 
@@ -267,6 +297,7 @@ const AppContent = () => {
     // Clear add mode and close drawer
     setPersonToAdd(undefined);
     setPersonForFiles(null);
+    setPersonToBuildTree(null);
     setRightDrawerOpen(false);
   };
 
@@ -278,6 +309,7 @@ const AppContent = () => {
     setPersonToEdit(null);
     setPersonToAdd(undefined);
     setPersonForFiles(null);
+    setPersonToBuildTree(null);
     setRightDrawerOpen(false);
   };
 
@@ -301,6 +333,7 @@ const AppContent = () => {
                 personToAdd={personToAdd}
                 personToView={personToView}
                 personForFiles={personForFiles}
+                personToBuildTree={personToBuildTree}
                 onPersonUpdated={handlePersonUpdated}
                 onPersonAdded={handlePersonAdded}
                 onPersonDeleted={handlePersonDeleted}
@@ -317,6 +350,7 @@ const AppContent = () => {
                 onAddPerson={handleAddPerson}
                 onViewPerson={handleViewPerson}
                 onManageFiles={handleManageFiles}
+                onBuildTreeForPerson={handleBuildTreeForPerson}
               />
               <Footer />
             </>

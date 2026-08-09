@@ -14,7 +14,7 @@ import { getPersonsLike } from './services/familyDataService';
 import { getUserInfo } from './services/authService';
 import { NO_CONNECTION_ERROR_TEXT } from './constants/errorMessages';
 
-function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUpdated, personToDelete, personToAdd, personToView, personForFiles, onPersonAdded, onPersonDeleted, onAddPersonClick }) {
+function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUpdated, personToDelete, personToAdd, personToView, personForFiles, personToBuildTree, onPersonAdded, onPersonDeleted, onAddPersonClick }) {
     const navigate = useNavigate();
     const [person, setPerson] = useState(null);
     const [persons, setPersons] = useState([]);
@@ -27,6 +27,11 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
 
     const [nbrOfParentGenerations, setNbrOfParentGenerations] = useState('1');
     const [nbrOfChildGenerations, setNbrOfChildGenerations] = useState('1');
+
+    const normalizePersonId = (value) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    };
 
     // Update mode when personToEdit, personToDelete, personToAdd, personToView, or personForFiles changes
     useEffect(() => {
@@ -44,6 +49,24 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
             setMode('select');
         }
     }, [personToEdit, personToDelete, personToAdd, personToView, personForFiles]);
+
+    useEffect(() => {
+        if (!personToBuildTree) {
+            return;
+        }
+
+        const normalizedPersonId = normalizePersonId(personToBuildTree.PersonID);
+        const normalizedPerson = normalizedPersonId
+            ? { ...personToBuildTree, PersonID: normalizedPersonId }
+            : personToBuildTree;
+
+        setMode('select');
+        setPerson(normalizedPerson);
+        setInputValue(
+            `${normalizedPerson.PersonGivvenName || ''} ${normalizedPerson.PersonFamilyName || ''}`.trim()
+        );
+        setBuildTreeError('');
+    }, [personToBuildTree]);
 
     // Handle atomic change of Autocomplete field
     const handleInputChange = (event, newInputValue) => {
@@ -81,13 +104,17 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
     // Handle person selected to build tree
     const handleBuildTree = () => {
         if (person && onPersonSelected) {
+            const normalizedPersonId = normalizePersonId(person.PersonID);
+            const personToSelect = normalizedPersonId
+                ? { ...person, PersonID: normalizedPersonId }
+                : person;
             const parentGens = Number.isFinite(Number(nbrOfParentGenerations))
                 ? Number(nbrOfParentGenerations)
                 : 0;
             const childGens = Number.isFinite(Number(nbrOfChildGenerations))
                 ? Number(nbrOfChildGenerations)
                 : 0;
-            onPersonSelected(person, parentGens, childGens);
+            onPersonSelected(personToSelect, parentGens, childGens);
             navigate('/familiez-bewerken');
             onClose();
         }
@@ -323,6 +350,7 @@ RightDrawer.propTypes = {
     personToAdd: PropTypes.object,
     personToView: PropTypes.object,
     personForFiles: PropTypes.object,
+    personToBuildTree: PropTypes.object,
     onPersonAdded: PropTypes.func,
     onPersonDeleted: PropTypes.func,
     onAddPersonClick: PropTypes.func,

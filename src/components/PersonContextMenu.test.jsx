@@ -17,6 +17,7 @@ describe('PersonContextMenu WG-02 actions', () => {
                 onAddPerson={() => {}}
                 onViewPerson={() => {}}
                 onManageFiles={() => {}}
+                onBuildTreeForPerson={() => {}}
                 person={{ PersonID: 7 }}
             />
         );
@@ -42,6 +43,7 @@ describe('PersonContextMenu WG-02 actions', () => {
                 onAddPerson={onAddPerson}
                 onViewPerson={() => {}}
                 onManageFiles={() => {}}
+                onBuildTreeForPerson={() => {}}
                 person={person}
             />
         );
@@ -49,6 +51,31 @@ describe('PersonContextMenu WG-02 actions', () => {
         fireEvent.click(screen.getByText('Dochter toevoegen'));
 
         expect(onAddPerson).toHaveBeenCalledWith(person, 'daughter');
+        expect(onClose).toHaveBeenCalled();
+    });
+
+    it('routes build-tree action with selected person', () => {
+        const onBuildTreeForPerson = vi.fn();
+        const onClose = vi.fn();
+        const person = { PersonID: 11 };
+
+        render(
+            <PersonContextMenu
+                anchorPosition={{ x: 120, y: 120 }}
+                onClose={onClose}
+                onEditPerson={() => {}}
+                onDeletePerson={() => {}}
+                onAddPerson={() => {}}
+                onViewPerson={() => {}}
+                onManageFiles={() => {}}
+                onBuildTreeForPerson={onBuildTreeForPerson}
+                person={person}
+            />
+        );
+
+        fireEvent.click(screen.getByText('Stamboom deze persoon'));
+
+        expect(onBuildTreeForPerson).toHaveBeenCalledWith(person);
         expect(onClose).toHaveBeenCalled();
     });
 });

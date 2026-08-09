@@ -27,9 +27,15 @@ const FamilyTreeCanvas = ({
     onDeletePerson,
     onAddPerson,
     onViewPerson,
-    onManageFiles
+    onManageFiles,
+    onBuildTreeForPerson
 }) => {
-    const rootPersonId = rootPerson?.PersonID ?? null;
+    const normalizePersonId = (value) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const rootPersonId = normalizePersonId(rootPerson?.PersonID);
     const [familyData, setFamilyData] = useState(new Map());
     const [positions, setPositions] = useState(new Map());
     const [parentsMap, setParentsMap] = useState(new Map());
@@ -42,6 +48,7 @@ const FamilyTreeCanvas = ({
     const [isLoadingTree, setIsLoadingTree] = useState(false);
     const [loadingDots, setLoadingDots] = useState('');
     const [treeLoadError, setTreeLoadError] = useState('');
+    const [loadedRootPersonId, setLoadedRootPersonId] = useState(null);
     const [showNonPartnerParents, setShowNonPartnerParents] = useState(
         () => localStorage.getItem(SHOW_NON_PARTNER_PARENTS_KEY) === 'true'
     );
@@ -99,11 +106,13 @@ const FamilyTreeCanvas = ({
             setCanvasSize({ width: 2000, height: 2000 });
             setIsLoadingTree(false);
             setTreeLoadError('');
+            setLoadedRootPersonId(null);
             return;
         }
 
         setIsLoadingTree(true);
         setTreeLoadError('');
+        setLoadedRootPersonId(null);
 
         // Clear existing state before building new tree
         setFamilyData(new Map());
@@ -213,7 +222,7 @@ const FamilyTreeCanvas = ({
             
             // Filter out root person and sort by birth date
             const siblings = allSiblings
-                .filter(s => s.PersonID !== rootPersonId)
+                .filter(s => normalizePersonId(s.PersonID) !== rootPersonId)
                 .sort((a, b) => {
                     const dateA = new Date(a.PersonDateOfBirth || '9999-12-31');
                     const dateB = new Date(b.PersonDateOfBirth || '9999-12-31');
@@ -269,19 +278,47 @@ const FamilyTreeCanvas = ({
                     fatherId: fatherId || null, 
                     motherId: motherId || null 
                 });
+
+                const parentPairArePartners = Boolean(
+                    fatherId && motherId && await arePartners(fatherId, motherId)
+                );
+
+                const preferFatherOnly = Boolean(
+                    !showNonPartnerParents &&
+                    fatherId &&
+                    motherId &&
+                    !parentPairArePartners
+                );
+
+                const includeFatherNode = Boolean(
+                    fatherId && (
+                        showNonPartnerParents ||
+                        parentPairArePartners ||
+                        !motherId ||
+                        preferFatherOnly
+                    )
+                );
+
+                const includeMotherNode = Boolean(
+                    motherId && (
+                        showNonPartnerParents ||
+                        parentPairArePartners ||
+                        !fatherId
+                    )
+                );
                 
-                if (fatherId) {
+                if (includeFatherNode) {
                     await addPerson(fatherId, currentGen + 1);
                     await buildUpward(fatherId, currentGen + 1);
                 }
                 
-                if (motherId) {
+                if (includeMotherNode) {
                     await addPerson(motherId, currentGen + 1);
                     await buildUpward(motherId, currentGen + 1);
                 }
                 
                 // Only set partners when DB confirms the relationship
-                if (fatherId && motherId && await arePartners(fatherId, motherId)) {
+                if (parentPairArePartners) {
                     if (!newPartnersMap.has(fatherId)) {
                         newPartnersMap.set(fatherId, []);
                     }
@@ -544,6 +581,7 @@ const FamilyTreeCanvas = ({
             setMarriagesMap(newMarriagesMap);
             setPositions(newPositions);
             setCanvasSize(canvasDimensions);
+            setLoadedRootPersonId(rootPersonId);
                 // Lazy/progressieve foto-ophaal met caching en concurrency
                 const personIds = Array.from(newFamilyData.keys());
                 const maxConcurrency = 5;
@@ -598,6 +636,7 @@ const FamilyTreeCanvas = ({
                 setPartnersMap(new Map());
                 setMarriagesMap(new Map());
                 setTreeLoadError(NO_CONNECTION_ERROR_TEXT);
+                setLoadedRootPersonId(null);
             }
         } finally {
             if (requestId === buildRequestIdRef.current) {
@@ -1128,6 +1167,7 @@ const FamilyTreeCanvas = ({
      */
     const handleCloseContextMenu = () => {
         setContextMenu(null);
+        setSelectedPerson(null);
     };
 
     /**
@@ -1169,6 +1209,12 @@ const FamilyTreeCanvas = ({
     const handleManageFiles = (person) => {
         if (onManageFiles) {
             onManageFiles(person);
+        }
+    };
+
+    const handleBuildTreeForPerson = (person) => {
+        if (onBuildTreeForPerson) {
+            onBuildTreeForPerson(person);
         }
     };
 
@@ -1477,40 +1523,37 @@ const FamilyTreeCanvas = ({
                 />
             );
 
-            const parentAnchorX = parentPositions.length > 1
-                ? (parentPositions[0].x + parentPositions[parentPositions.length - 1].x) / 2
-                : parentPositions[0].x;
-            const parentAnchorY = parentPositions.length > 1
-                ? (parentPositions[0].y + TRIANGLE_HEIGHT + parentPositions[parentPositions.length - 1].y + TRIANGLE_HEIGHT) / 2
-                : parentPositions[0].y + TRIANGLE_HEIGHT;
-            const connectorY = busY - 28;
-            const hasDirectVerticalAccess = parentAnchorX >= busLeftX && parentAnchorX <= busRightX;
-            const busTouchX = hasDirectVerticalAccess
-                ? parentAnchorX
-                : (parentAnchorX < busLeftX
-                    ? busLeftX + 18
-                    : busRightX - 18);
+            const drawParentBranch = (anchorX, anchorY, keySuffix) => {
+                const connectorY = busY - 28;
+                const hasDirectVerticalAccess = anchorX >= busLeftX && anchorX <= busRightX;
+                const busTouchX = hasDirectVerticalAccess
+                    ? anchorX
+                    : (anchorX < busLeftX
+                        ? busLeftX + 18
+                        : busRightX - 18);
 
-            if (hasDirectVerticalAccess) {
+                if (hasDirectVerticalAccess) {
+                    parentChildLines.push(
+                        <line
+                            key={`parent-branch-${groupKey}-${keySuffix}`}
+                            x1={anchorX}
+                            y1={anchorY}
+                            x2={anchorX}
+                            y2={busY}
+                            stroke="#666666"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                        />
+                    );
+                    return;
+                }
+
                 parentChildLines.push(
                     <line
-                        key={`parent-branch-${groupKey}`}
-                        x1={parentAnchorX}
-                        y1={parentAnchorY}
-                        x2={parentAnchorX}
-                        y2={busY}
-                        stroke="#666666"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                    />
-                );
-            } else {
-                parentChildLines.push(
-                    <line
-                        key={`parent-branch-${groupKey}`}
-                        x1={parentAnchorX}
-                        y1={parentAnchorY}
-                        x2={parentAnchorX}
+                        key={`parent-branch-${groupKey}-${keySuffix}`}
+                        x1={anchorX}
+                        y1={anchorY}
+                        x2={anchorX}
                         y2={connectorY}
                         stroke="#666666"
                         strokeWidth="2"
@@ -1520,8 +1563,8 @@ const FamilyTreeCanvas = ({
 
                 parentChildLines.push(
                     <line
-                        key={`parent-hint-${groupKey}`}
-                        x1={parentAnchorX}
+                        key={`parent-hint-${groupKey}-${keySuffix}`}
+                        x1={anchorX}
                         y1={connectorY}
                         x2={busTouchX}
                         y2={connectorY}
@@ -1533,7 +1576,7 @@ const FamilyTreeCanvas = ({
 
                 parentChildLines.push(
                     <line
-                        key={`parent-bus-${groupKey}`}
+                        key={`parent-bus-${groupKey}-${keySuffix}`}
                         x1={busTouchX}
                         y1={connectorY}
                         x2={busTouchX}
@@ -1543,6 +1586,30 @@ const FamilyTreeCanvas = ({
                         strokeLinecap="round"
                     />
                 );
+            };
+
+            const parentIds = group.parentIds || [];
+            const hasVisibleParentPair = parentIds.length > 1;
+            const parentsArePartners = hasVisibleParentPair && parentIds.every((parentId, index) => {
+                if (index === 0) {
+                    return true;
+                }
+                return (partnersMap.get(parentIds[0]) || []).includes(parentId);
+            });
+
+            if (hasVisibleParentPair && !parentsArePartners) {
+                parentPositions.forEach((parentPos, index) => {
+                    drawParentBranch(parentPos.x, parentPos.y + TRIANGLE_HEIGHT, `single-${index}`);
+                });
+            } else {
+                const parentAnchorX = parentPositions.length > 1
+                    ? (parentPositions[0].x + parentPositions[parentPositions.length - 1].x) / 2
+                    : parentPositions[0].x;
+                const parentAnchorY = parentPositions.length > 1
+                    ? (parentPositions[0].y + TRIANGLE_HEIGHT + parentPositions[parentPositions.length - 1].y + TRIANGLE_HEIGHT) / 2
+                    : parentPositions[0].y + TRIANGLE_HEIGHT;
+
+                drawParentBranch(parentAnchorX, parentAnchorY, 'shared');
             }
 
             childPositions.forEach((childPos, index) => {
@@ -1690,7 +1757,15 @@ const FamilyTreeCanvas = ({
 
     // Auto-center on root person when tree first loads
     useEffect(() => {
-        if (hasAutoCenteredRef.current || positions.size === 0 || !rootPersonId) {
+        if (
+            hasAutoCenteredRef.current ||
+            isLoadingTree ||
+            positions.size === 0 ||
+            !rootPersonId ||
+            loadedRootPersonId !== rootPersonId ||
+            !familyData.has(rootPersonId) ||
+            !positions.has(rootPersonId)
+        ) {
             return undefined;
         }
 
@@ -1722,7 +1797,7 @@ const FamilyTreeCanvas = ({
                 window.cancelAnimationFrame(rafId);
             }
         };
-    }, [positions, rootPersonId, centerOnRoot]);
+    }, [positions, rootPersonId, centerOnRoot, isLoadingTree, familyData, loadedRootPersonId]);
 
     // Attach wheel listener as non-passive so preventDefault() works.
     // Include rootPerson in deps so the effect re-runs when the SVG enters the DOM.
@@ -2066,6 +2141,7 @@ const FamilyTreeCanvas = ({
                     onAddPerson={handleAddPerson}
                     onViewPerson={handleViewPerson}
                     onManageFiles={handleManageFiles}
+                    onBuildTreeForPerson={handleBuildTreeForPerson}
                 />
             )}
         </div>
@@ -2085,6 +2161,7 @@ FamilyTreeCanvas.propTypes = {
     onAddPerson: PropTypes.func,
     onViewPerson: PropTypes.func,
     onManageFiles: PropTypes.func,
+    onBuildTreeForPerson: PropTypes.func,
 };
 
 export default FamilyTreeCanvas;

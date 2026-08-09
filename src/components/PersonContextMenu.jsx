@@ -16,6 +16,7 @@ const PersonContextMenu = ({
     onAddPerson,
     onViewPerson,
     onManageFiles,
+    onBuildTreeForPerson,
     person,
 }) => {
     const userInfo = getUserInfo();
@@ -56,6 +57,13 @@ const PersonContextMenu = ({
         onClose();
     };
 
+    const handleBuildTreeClick = () => {
+        if (onBuildTreeForPerson && person) {
+            onBuildTreeForPerson(person);
+        }
+        onClose();
+    };
+
     return (
         <Menu
             open={Boolean(anchorPosition)}
@@ -69,6 +77,9 @@ const PersonContextMenu = ({
         >
             <MenuItem onClick={handleViewClick}>
                 Persoon inzien
+            </MenuItem>
+            <MenuItem onClick={handleBuildTreeClick}>
+                Stamboom deze persoon
             </MenuItem>
             {isAdmin && (
                 <MenuItem onClick={handleEditClick}>
@@ -124,6 +135,7 @@ PersonContextMenu.propTypes = {
     onAddPerson: PropTypes.func,
     onViewPerson: PropTypes.func,
     onManageFiles: PropTypes.func,
+    onBuildTreeForPerson: PropTypes.func,
     person: PropTypes.object,
 };
 

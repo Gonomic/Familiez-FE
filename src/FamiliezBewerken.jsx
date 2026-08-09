@@ -12,7 +12,8 @@ const FamiliezBewerken = ({
     onDeletePerson,
     onAddPerson,
     onViewPerson,
-    onManageFiles
+    onManageFiles,
+    onBuildTreeForPerson
 }) => {
     return (
         <Box sx={{ 
@@ -35,6 +36,7 @@ const FamiliezBewerken = ({
                 onAddPerson={onAddPerson}
                 onViewPerson={onViewPerson}
                 onManageFiles={onManageFiles}
+                onBuildTreeForPerson={onBuildTreeForPerson}
             />
         </Box>
     );
@@ -51,6 +53,7 @@ FamiliezBewerken.propTypes = {
     onAddPerson: PropTypes.func,
     onViewPerson: PropTypes.func,
     onManageFiles: PropTypes.func,
+    onBuildTreeForPerson: PropTypes.func,
 };
 
 export default FamiliezBewerken;
