@@ -15,6 +15,7 @@ vi.mock('../services/familyDataService', async () => {
         getChildren: vi.fn(),
         getFather: vi.fn(),
         getMother: vi.fn(),
+        getPartners: vi.fn(),
         getPersonDetails: vi.fn(),
     };
 });
@@ -29,6 +30,7 @@ describe('PersonAddForm sibling guard', () => {
         familyDataService.getPossibleMothersBasedOnAge.mockResolvedValue([]);
         familyDataService.getPossibleFathersBasedOnAge.mockResolvedValue([]);
         familyDataService.getChildren.mockResolvedValue([]);
+        familyDataService.getPartners.mockResolvedValue([]);
         familyDataService.addPerson.mockResolvedValue({ success: true, person: { PersonID: 123 } });
     });
 
@@ -63,5 +65,70 @@ describe('PersonAddForm sibling guard', () => {
         });
 
         expect(familyDataService.addPerson).not.toHaveBeenCalled();
+    });
+
+    it('prefills surname and only locks one parent for sibling add when parents are no longer partners', async () => {
+        const user = userEvent.setup();
+
+        familyDataService.getFather.mockResolvedValue(10);
+        familyDataService.getMother.mockResolvedValue(20);
+        familyDataService.getPartners.mockResolvedValue([
+            { PersonID: 99, PersonGivvenName: 'Gerda', PersonFamilyName: 'Dekkers' },
+        ]);
+        familyDataService.getPersonDetails.mockImplementation(async (personId) => {
+            if (personId === 10) {
+                return {
+                    PersonID: 10,
+                    PersonGivvenName: 'Frans',
+                    PersonFamilyName: 'Dekkers',
+                    PersonIsMale: 1,
+                };
+            }
+
+            if (personId === 20) {
+                return {
+                    PersonID: 20,
+                    PersonGivvenName: 'Carin',
+                    PersonFamilyName: 'Jansen',
+                    PersonIsMale: 0,
+                };
+            }
+
+            return null;
+        });
+        familyDataService.getPossibleMothersBasedOnAge.mockResolvedValue([
+            {
+                PossibleMotherID: 20,
+                PossibleMother: 'Carin Jansen',
+                PersonDateOfBirth: '1965-01-01',
+            },
+        ]);
+
+        const { container } = render(
+            <PersonAddForm
+                relationAction="brother"
+                sourcePerson={{ PersonID: 42, PersonFamilyName: 'Dekkers' }}
+                onAdd={() => {}}
+                onCancel={() => {}}
+            />
+        );
+
+        await waitFor(() => {
+            expect(screen.getByRole('textbox', { name: /Achternaam/i })).toHaveValue('Dekkers');
+            expect(screen.getByLabelText('Vader')).toHaveValue('Frans Dekkers');
+        });
+
+        expect(screen.queryByDisplayValue('Carin Jansen')).not.toBeInTheDocument();
+
+        const birthDateInput = container.querySelector('input[type="date"]');
+        expect(birthDateInput).toBeTruthy();
+        fireEvent.change(birthDateInput, { target: { value: '2000-01-01' } });
+
+        await waitFor(() => {
+            expect(familyDataService.getPossibleMothersBasedOnAge).toHaveBeenCalledWith('2000-01-01');
+        });
+
+        await user.click(screen.getByRole('combobox', { name: 'Moeder' }));
+        expect(await screen.findByRole('option', { name: 'Carin Jansen (01-01-1965)' })).toBeInTheDocument();
     });
 });
