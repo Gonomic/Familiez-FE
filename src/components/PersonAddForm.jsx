@@ -10,6 +10,7 @@ import {
     getChildren,
     getFather,
     getMother,
+    getPartners,
     getPersonDetails,
 } from '../services/familyDataService';
 
@@ -106,11 +107,16 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
     const [isLoadingPartners, setIsLoadingPartners] = useState(false);
     const [prefilledParentNames, setPrefilledParentNames] = useState({ father: '', mother: '' });
     const [isResolvingSiblingParents, setIsResolvingSiblingParents] = useState(false);
+    const [siblingParentMode, setSiblingParentMode] = useState('none');
+    const [siblingLockedParent, setSiblingLockedParent] = useState(null);
 
     const isSiblingWithoutKnownParents = isSiblingMode
         && !isResolvingSiblingParents
         && !formData.FatherId
         && !formData.MotherId;
+
+    const effectiveLinkedParent = isSiblingMode ? siblingLockedParent : parentPerson;
+    const linkedParentIsMale = effectiveLinkedParent && (effectiveLinkedParent.PersonIsMale === true || effectiveLinkedParent.PersonIsMale === 1);
 
     // Initialize parent context and gender presets based on selected add action.
     useEffect(() => {
@@ -118,10 +124,16 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
 
         const applyRelationDefaults = async () => {
             setPrefilledParentNames({ father: '', mother: '' });
+            setSiblingParentMode('none');
+            setSiblingLockedParent(null);
             setFormData(prev => ({
                 ...prev,
+                PersonFamilyName: isSiblingMode
+                    ? (sourcePerson?.PersonFamilyName || '')
+                    : prev.PersonFamilyName,
                 FatherId: null,
                 MotherId: null,
+                PartnerId: null,
                 PersonIsMale: genderPreset,
             }));
 
@@ -132,6 +144,13 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
                         getFather(sourcePerson.PersonID),
                         getMother(sourcePerson.PersonID),
                     ]);
+
+                    const fatherPartners = fatherId ? await getPartners(fatherId) : [];
+                    const parentsArePartners = Boolean(
+                        fatherId &&
+                        motherId &&
+                        (fatherPartners || []).some((partner) => Number(partner?.PersonID) === Number(motherId))
+                    );
 
                     const [fatherData, motherData] = await Promise.all([
                         fatherId ? getPersonDetails(fatherId) : Promise.resolve(null),
@@ -150,10 +169,56 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
                         : (motherId ? `ID ${motherId}` : 'Onbekend');
 
                     setPrefilledParentNames({ father: fatherLabel, mother: motherLabel });
+
+                    if (parentsArePartners) {
+                        setSiblingParentMode('pair');
+                        setSiblingLockedParent(null);
+                        setFormData(prev => ({
+                            ...prev,
+                            FatherId: fatherId || null,
+                            MotherId: motherId || null,
+                        }));
+                        return;
+                    }
+
+                    if (fatherId) {
+                        setSiblingParentMode('father');
+                        setSiblingLockedParent(fatherData || {
+                            PersonID: fatherId,
+                            PersonIsMale: 1,
+                            PersonGivvenName: fatherLabel,
+                            PersonFamilyName: '',
+                        });
+                        setFormData(prev => ({
+                            ...prev,
+                            FatherId: fatherId || null,
+                            MotherId: null,
+                        }));
+                        return;
+                    }
+
+                    if (motherId) {
+                        setSiblingParentMode('mother');
+                        setSiblingLockedParent(motherData || {
+                            PersonID: motherId,
+                            PersonIsMale: 0,
+                            PersonGivvenName: motherLabel,
+                            PersonFamilyName: '',
+                        });
+                        setFormData(prev => ({
+                            ...prev,
+                            FatherId: null,
+                            MotherId: motherId || null,
+                        }));
+                        return;
+                    }
+
+                    setSiblingParentMode('none');
+                    setSiblingLockedParent(null);
                     setFormData(prev => ({
                         ...prev,
-                        FatherId: fatherId || null,
-                        MotherId: motherId || null,
+                        FatherId: null,
+                        MotherId: null,
                     }));
                     return;
                 } catch (err) {
@@ -190,7 +255,7 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
     }, [genderPreset, isSiblingMode, parentPerson, sourcePerson?.PersonID]);
 
     useEffect(() => {
-        const shouldFetchMothers = !isSiblingMode && parentPerson?.PersonIsMale && formData.PersonDateOfBirth;
+        const shouldFetchMothers = Boolean(linkedParentIsMale && siblingParentMode !== 'pair' && formData.PersonDateOfBirth);
         if (!shouldFetchMothers) {
             setPossibleMothers([]);
             return;
@@ -242,7 +307,7 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
         return () => {
             isCancelled = true;
         };
-    }, [isSiblingMode, parentPerson, formData.PersonDateOfBirth, formData.MotherId]);
+    }, [linkedParentIsMale, siblingParentMode, formData.PersonDateOfBirth, formData.MotherId]);
 
     useEffect(() => {
         if (!formData.PersonDateOfBirth) {
@@ -321,7 +386,10 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
     }, [formData.PersonDateOfBirth, formData.FatherId, formData.MotherId, formData.PartnerId]);
 
     useEffect(() => {
-        const isMother = !isSiblingMode && parentPerson && (parentPerson.PersonIsMale === false || parentPerson.PersonIsMale === 0);
+        const isMother = Boolean(
+            effectiveLinkedParent &&
+            (effectiveLinkedParent.PersonIsMale === false || effectiveLinkedParent.PersonIsMale === 0)
+        );
         const shouldFetchFathers = isMother && formData.PersonDateOfBirth;
         if (!shouldFetchFathers) {
             setPossibleFathers([]);
@@ -374,7 +442,7 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
         return () => {
             isCancelled = true;
         };
-    }, [isSiblingMode, parentPerson, formData.PersonDateOfBirth, formData.FatherId]);
+    }, [effectiveLinkedParent, formData.PersonDateOfBirth, formData.FatherId]);
 
     const handleChange = (field) => (event) => {
         let value = event.target.value;
@@ -578,7 +646,7 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
                 </RadioGroup>
             </FormControl>
 
-            {isSiblingMode ? (
+            {isSiblingMode && siblingParentMode === 'pair' ? (
                 <>
                     <TextField
                         label="Vader"
@@ -595,11 +663,11 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
                         helperText="Automatisch overgenomen uit geselecteerde persoon"
                     />
                 </>
-            ) : parentPerson?.PersonIsMale ? (
+            ) : linkedParentIsMale ? (
                 <>
                     <TextField
                         label="Vader"
-                        value={parentPerson ? `${parentPerson.PersonGivvenName || ''} ${parentPerson.PersonFamilyName || ''}`.trim() : ''}
+                        value={effectiveLinkedParent ? `${effectiveLinkedParent.PersonGivvenName || ''} ${effectiveLinkedParent.PersonFamilyName || ''}`.trim() : ''}
                         fullWidth
                         disabled
                         helperText="Automatisch ingesteld"
@@ -627,11 +695,11 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
                         ))}
                     </TextField>
                 </>
-            ) : parentPerson ? (
+            ) : effectiveLinkedParent ? (
                 <>
                     <TextField
                         label="Moeder"
-                        value={parentPerson ? `${parentPerson.PersonGivvenName || ''} ${parentPerson.PersonFamilyName || ''}`.trim() : ''}
+                        value={effectiveLinkedParent ? `${effectiveLinkedParent.PersonGivvenName || ''} ${effectiveLinkedParent.PersonFamilyName || ''}`.trim() : ''}
                         fullWidth
                         disabled
                         helperText="Automatisch ingesteld"

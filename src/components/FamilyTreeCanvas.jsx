@@ -232,11 +232,16 @@ const FamilyTreeCanvas = ({
             // Add siblings to family data
             for (const sibling of siblings) {
                 await addPerson(sibling.PersonID, 0); // Same generation as root
+
+                const [siblingFatherId, siblingMotherId] = await Promise.all([
+                    getFather(sibling.PersonID),
+                    getMother(sibling.PersonID),
+                ]);
                 
                 // Set parent relationship for sibling
                 newParentsMap.set(sibling.PersonID, {
-                    fatherId: rootFatherId || null,
-                    motherId: rootMotherId || null
+                    fatherId: siblingFatherId || null,
+                    motherId: siblingMotherId || null
                 });
                 
                 // Get partners of sibling
@@ -949,6 +954,11 @@ const FamilyTreeCanvas = ({
         });
 
         const maxGenerationSpan = Math.max(...generationLayoutData.map(item => item.span), COUPLE_WIDTH);
+        const maxGenerationPersonCount = Math.max(
+            ...layoutGenerations.map(gen => (generations.get(gen) || []).length),
+            1
+        );
+        const compactGenerationPersonLimit = Math.max(1, Math.floor(maxGenerationPersonCount * 0.2));
 
         // Pass 2: place generations sequentially so descendants can use already-placed parent anchors.
         generationLayoutData.forEach(({ gen, y }) => {
@@ -1022,7 +1032,7 @@ const FamilyTreeCanvas = ({
                     const anchors = [fatherAnchor, motherAnchor].filter(anchor => anchor !== null);
 
                     if (anchors.length > 0) {
-                        return Math.min(...anchors);
+                        return anchors.reduce((sum, value) => sum + value, 0) / anchors.length;
                     }
                 }
 
@@ -1033,6 +1043,13 @@ const FamilyTreeCanvas = ({
                 block.lineageAnchor = getLineageAnchor(block);
             });
 
+            const anchoredLineageValues = positionedBlocks
+                .map(block => block.lineageAnchor)
+                .filter(anchor => anchor !== null);
+            const hasRepeatedLineageAnchor = new Set(anchoredLineageValues).size < anchoredLineageValues.length;
+            const useCompactParentAnchoredLayout = isDescendantGeneration
+                && (rawPersonIds.length <= compactGenerationPersonLimit || hasRepeatedLineageAnchor);
+
             const anchoredValues = positionedBlocks
                 .map(block => block.lineageAnchor)
                 .filter(anchor => anchor !== null);
@@ -1041,7 +1058,7 @@ const FamilyTreeCanvas = ({
                 ? anchoredValues.reduce((sum, value) => sum + value, 0) / anchoredValues.length
                 : 0;
 
-            if (ENABLE_ANCHOR_DRIVEN_LAYOUT) {
+            if (ENABLE_ANCHOR_DRIVEN_LAYOUT || useCompactParentAnchoredLayout) {
                 positionedBlocks.forEach((block, index) => {
                     block.desiredCenter = block.lineageAnchor !== null
                         ? block.lineageAnchor
@@ -1049,15 +1066,21 @@ const FamilyTreeCanvas = ({
                 });
 
                 let previousRightEdge = null;
+                let previousBlock = null;
                 positionedBlocks.forEach(block => {
+                    const sameLineageGroup = previousBlock
+                        && block.lineageAnchor !== null
+                        && block.lineageAnchor === previousBlock.lineageAnchor;
+                    const blockGap = sameLineageGroup ? HORIZONTAL_GAP / 2 : HORIZONTAL_GAP;
                     const minCenter = previousRightEdge === null
                         ? Number.NEGATIVE_INFINITY
-                        : previousRightEdge + BLOCK_MIN_GAP + (block.width / 2);
+                        : previousRightEdge + blockGap + (block.width / 2);
 
                     block.center = Math.max(block.desiredCenter, minCenter);
                     block.leftEdge = block.center - (block.width / 2);
                     block.rightEdge = block.center + (block.width / 2);
                     previousRightEdge = block.rightEdge;
+                    previousBlock = block;
                 });
 
                 if (positionedBlocks.length > 0) {
@@ -1390,6 +1413,25 @@ const FamilyTreeCanvas = ({
         // Parent-child connections using grouped horizontal bus lines and vertical branches.
         const parentChildGroups = new Map();
 
+        const makeBiologicalGroupKey = (fatherId, motherId) => {
+            const hasFather = Boolean(fatherId);
+            const hasMother = Boolean(motherId);
+
+            if (hasFather && hasMother) {
+                return `bio-pair-${Math.min(fatherId, motherId)}-${Math.max(fatherId, motherId)}`;
+            }
+
+            if (hasFather) {
+                return `bio-father-${fatherId}`;
+            }
+
+            if (hasMother) {
+                return `bio-mother-${motherId}`;
+            }
+
+            return null;
+        };
+
         parentsMap.forEach((parents, childId) => {
             const childPos = positions.get(childId);
             if (!childPos) {
@@ -1413,9 +1455,11 @@ const FamilyTreeCanvas = ({
                 return;
             }
 
-            const groupKey = visibleParentIds.length > 1
-                ? `pair-${Math.min(...visibleParentIds)}-${Math.max(...visibleParentIds)}`
-                : `single-${visibleParentIds[0]}`;
+            const biologicalGroupKey = makeBiologicalGroupKey(fatherId, motherId);
+            const fallbackVisibleKey = visibleParentIds.length > 1
+                ? `visible-pair-${Math.min(...visibleParentIds)}-${Math.max(...visibleParentIds)}`
+                : `visible-single-${visibleParentIds[0]}`;
+            const groupKey = biologicalGroupKey || fallbackVisibleKey;
 
             if (!parentChildGroups.has(groupKey)) {
                 parentChildGroups.set(groupKey, {
@@ -1427,9 +1471,15 @@ const FamilyTreeCanvas = ({
             parentChildGroups.get(groupKey).children.push(childId);
         });
 
-        const BUS_LANE_STEP = 24;
-        const BUS_OVERLAP_MARGIN = 36;
+        const BUS_LANE_STEP = 0;
+        const BUS_OVERLAP_MARGIN = 64;
         const BUS_SIDE_PADDING = 10;
+        const BUS_LANE_START_X_OFFSET = 18;
+        const BUS_SEQUENTIAL_GAP = 10;
+        const BUS_PARENT_JOIN_INSET = 12;
+        const BUS_PARENT_JOIN_LANE_OFFSET = 8;
+        const BUS_CHILD_JOIN_INSET = 12;
+        const BUS_CHILD_JOIN_SPREAD = 8;
 
         const groupLayouts = [];
 
@@ -1456,7 +1506,7 @@ const FamilyTreeCanvas = ({
             }
 
             const parentBottomYs = parentPositions.map(parentPos => parentPos.y + TRIANGLE_HEIGHT);
-            const baseBusY = Math.min(childTopY - 36, Math.min(...parentBottomYs) + 90);
+            const baseBusY = childTopY - 36;
             const parentAnchorX = parentPositions.length > 1
                 ? (parentPositions[0].x + parentPositions[parentPositions.length - 1].x) / 2
                 : parentPositions[0].x;
@@ -1485,6 +1535,7 @@ const FamilyTreeCanvas = ({
             })
             .forEach(layout => {
                 const occupiedLanes = new Set();
+                const layoutParentIds = new Set(layout.group?.parentIds || []);
 
                 placedLayouts.forEach(existing => {
                     const sameBand = Math.abs(existing.baseBusY - layout.baseBusY) < BUS_LANE_STEP * 4;
@@ -1492,8 +1543,10 @@ const FamilyTreeCanvas = ({
                         layout.busRightX < (existing.busLeftX - BUS_OVERLAP_MARGIN) ||
                         layout.busLeftX > (existing.busRightX + BUS_OVERLAP_MARGIN)
                     );
+                    const existingParentIds = existing.group?.parentIds || [];
+                    const sharesParent = existingParentIds.some(parentId => layoutParentIds.has(parentId));
 
-                    if (sameBand && overlapsX) {
+                    if ((sameBand && overlapsX) || sharesParent) {
                         occupiedLanes.add(existing.lane);
                     }
                 });
@@ -1507,13 +1560,39 @@ const FamilyTreeCanvas = ({
                 placedLayouts.push(layout);
             });
 
-        placedLayouts.forEach(({ group, groupKey, childPositions, busLeftX, busRightX, parentPositions, baseBusY, lane }) => {
+        const renderLayouts = [...placedLayouts].sort((a, b) => {
+            const aBusY = a.baseBusY - (a.lane * BUS_LANE_STEP);
+            const bBusY = b.baseBusY - (b.lane * BUS_LANE_STEP);
+            if (aBusY !== bBusY) {
+                return aBusY - bBusY;
+            }
+            return a.busLeftX - b.busLeftX;
+        });
+
+        renderLayouts.forEach(({ group, groupKey, childPositions, busLeftX, busRightX, parentPositions, baseBusY, lane }) => {
             const busY = baseBusY - (lane * BUS_LANE_STEP);
+            const parentIds = group.parentIds || [];
+            const hasVisibleParentPair = parentIds.length > 1;
+            const parentsArePartners = hasVisibleParentPair && parentIds.every((parentId, index) => {
+                if (index === 0) {
+                    return true;
+                }
+                return (partnersMap.get(parentIds[0]) || []).includes(parentId);
+            });
+
+            const parentAnchorCandidatesX = (hasVisibleParentPair && !parentsArePartners)
+                ? parentPositions.map(parentPos => parentPos.x)
+                : [
+                    parentPositions.length > 1
+                        ? (parentPositions[0].x + parentPositions[parentPositions.length - 1].x) / 2
+                        : parentPositions[0].x
+                ];
+            const adjustedBusLeftX = busLeftX;
 
             parentChildLines.push(
                 <line
                     key={`bus-${groupKey}`}
-                    x1={busLeftX}
+                    x1={adjustedBusLeftX}
                     y1={busY}
                     x2={busRightX}
                     y2={busY}
@@ -1524,14 +1603,12 @@ const FamilyTreeCanvas = ({
             );
 
             const drawParentBranch = (anchorX, anchorY, keySuffix) => {
-                const connectorY = busY - 28;
-                const hasDirectVerticalAccess = anchorX >= busLeftX && anchorX <= busRightX;
+                const hasDirectVerticalAccess = anchorX >= adjustedBusLeftX && anchorX <= busRightX;
                 const busTouchX = hasDirectVerticalAccess
                     ? anchorX
-                    : (anchorX < busLeftX
-                        ? busLeftX + 18
+                    : (anchorX < adjustedBusLeftX
+                        ? adjustedBusLeftX + 18
                         : busRightX - 18);
-
                 if (hasDirectVerticalAccess) {
                     parentChildLines.push(
                         <line
@@ -1547,55 +1624,17 @@ const FamilyTreeCanvas = ({
                     );
                     return;
                 }
-
                 parentChildLines.push(
-                    <line
+                    <path
                         key={`parent-branch-${groupKey}-${keySuffix}`}
-                        x1={anchorX}
-                        y1={anchorY}
-                        x2={anchorX}
-                        y2={connectorY}
-                        stroke="#666666"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                    />
-                );
-
-                parentChildLines.push(
-                    <line
-                        key={`parent-hint-${groupKey}-${keySuffix}`}
-                        x1={anchorX}
-                        y1={connectorY}
-                        x2={busTouchX}
-                        y2={connectorY}
-                        stroke="#666666"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                    />
-                );
-
-                parentChildLines.push(
-                    <line
-                        key={`parent-bus-${groupKey}-${keySuffix}`}
-                        x1={busTouchX}
-                        y1={connectorY}
-                        x2={busTouchX}
-                        y2={busY}
+                        d={`M ${anchorX} ${anchorY} L ${busTouchX} ${busY}`}
+                        fill="none"
                         stroke="#666666"
                         strokeWidth="2"
                         strokeLinecap="round"
                     />
                 );
             };
-
-            const parentIds = group.parentIds || [];
-            const hasVisibleParentPair = parentIds.length > 1;
-            const parentsArePartners = hasVisibleParentPair && parentIds.every((parentId, index) => {
-                if (index === 0) {
-                    return true;
-                }
-                return (partnersMap.get(parentIds[0]) || []).includes(parentId);
-            });
 
             if (hasVisibleParentPair && !parentsArePartners) {
                 parentPositions.forEach((parentPos, index) => {
@@ -1613,13 +1652,66 @@ const FamilyTreeCanvas = ({
             }
 
             childPositions.forEach((childPos, index) => {
+                const hasDirectVerticalAccess = childPos.x >= adjustedBusLeftX && childPos.x <= busRightX;
+
+                if (hasDirectVerticalAccess) {
+                    parentChildLines.push(
+                        <line
+                            key={`child-branch-${groupKey}-${index}`}
+                            x1={childPos.x}
+                            y1={busY}
+                            x2={childPos.x}
+                            y2={childPos.y}
+                            stroke="#666666"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                        />
+                    );
+                    return;
+                }
+
+                const connectorY = busY + 24;
+                const rawBusTouchX = childPos.x < adjustedBusLeftX
+                    ? adjustedBusLeftX + 12
+                    : busRightX - 12;
+                const busTouchX = Math.max(adjustedBusLeftX + 2, Math.min(rawBusTouchX, busRightX - 2));
+                const needsHorizontalHint = Math.abs(childPos.x - busTouchX) > 1;
+
                 parentChildLines.push(
                     <line
                         key={`child-branch-${groupKey}-${index}`}
                         x1={childPos.x}
-                        y1={busY}
+                        y1={childPos.y}
                         x2={childPos.x}
-                        y2={childPos.y}
+                        y2={connectorY}
+                        stroke="#666666"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                    />
+                );
+
+                if (needsHorizontalHint) {
+                    parentChildLines.push(
+                        <line
+                            key={`child-hint-${groupKey}-${index}`}
+                            x1={childPos.x}
+                            y1={connectorY}
+                            x2={busTouchX}
+                            y2={connectorY}
+                            stroke="#666666"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                        />
+                    );
+                }
+
+                parentChildLines.push(
+                    <line
+                        key={`child-bus-${groupKey}-${index}`}
+                        x1={busTouchX}
+                        y1={connectorY}
+                        x2={busTouchX}
+                        y2={busY}
                         stroke="#666666"
                         strokeWidth="2"
                         strokeLinecap="round"
