@@ -277,7 +277,9 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
                     ) : mode === 'add' ? (
                         <>
                             <PersonAddForm
-                                parentPerson={personToAdd}
+                                parentPerson={personToAdd?.contextPerson || null}
+                                relationAction={personToAdd?.relationAction || 'standalone'}
+                                sourcePerson={personToAdd?.contextPerson || null}
                                 onAdd={handlePersonAdded}
                                 onCancel={handleCancelAdd}
                             />

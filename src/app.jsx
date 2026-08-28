@@ -212,8 +212,12 @@ const AppContent = () => {
     setRightDrawerOpen(true);
   };
 
-  const handleAddPerson = (person) => {
-    setPersonToAdd(person);
+  const handleAddPerson = (person, relationAction) => {
+    const resolvedAction = relationAction || (person ? 'child' : 'standalone');
+    setPersonToAdd({
+      contextPerson: person || null,
+      relationAction: resolvedAction,
+    });
     setRightDrawerOpen(true);
   };
 
@@ -256,8 +260,8 @@ const AppContent = () => {
         navigate('/familiez-bewerken');
       }
       setTreeRefreshTrigger(prev => prev + 1);
-      if (personToAdd?.PersonID) {
-        setLastAddedParentId(personToAdd.PersonID);
+      if (personToAdd?.contextPerson?.PersonID) {
+        setLastAddedParentId(personToAdd.contextPerson.PersonID);
       }
     }
     // Clear add mode and close drawer

@@ -42,9 +42,9 @@ const PersonContextMenu = ({
         onClose();
     };
 
-    const handleAddClick = () => {
+    const handleAddClick = (relationAction) => {
         if (onAddPerson && person) {
-            onAddPerson(person);
+            onAddPerson(person, relationAction);
         }
         onClose();
     };
@@ -81,8 +81,23 @@ const PersonContextMenu = ({
                 </MenuItem>
             )}
             {isAdmin && (
-                <MenuItem onClick={handleAddClick}>
-                    Kind toevoegen
+                <MenuItem onClick={() => handleAddClick('brother')}>
+                    Broer toevoegen
+                </MenuItem>
+            )}
+            {isAdmin && (
+                <MenuItem onClick={() => handleAddClick('sister')}>
+                    Zus toevoegen
+                </MenuItem>
+            )}
+            {isAdmin && (
+                <MenuItem onClick={() => handleAddClick('daughter')}>
+                    Dochter toevoegen
+                </MenuItem>
+            )}
+            {isAdmin && (
+                <MenuItem onClick={() => handleAddClick('son')}>
+                    Zoon toevoegen
                 </MenuItem>
             )}
             {!isAdmin && (
