@@ -99,6 +99,7 @@ describe('PersonEditForm marriage start date fallback', () => {
                 personAId: 89,
                 personBId: 207,
                 startDate: '2014-05-23',
+                marriagePlace: null,
             });
         });
 
@@ -127,6 +128,7 @@ describe('PersonEditForm marriage start date fallback', () => {
                 personAId: 89,
                 personBId: 207,
                 startDate: '1961-05-23',
+                marriagePlace: null,
             });
         });
 
@@ -161,6 +163,7 @@ describe('PersonEditForm marriage start date fallback', () => {
                 personAId: 89,
                 personBId: 207,
                 startDate: '2014-05-23',
+                marriagePlace: null,
             });
         });
 
