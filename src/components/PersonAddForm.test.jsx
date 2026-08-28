@@ -34,6 +34,28 @@ describe('PersonAddForm sibling guard', () => {
         familyDataService.addPerson.mockResolvedValue({ success: true, person: { PersonID: 123 } });
     });
 
+    it.each([
+        ['brother', 'Man'],
+        ['sister', 'Vrouw'],
+        ['son', 'Man'],
+        ['daughter', 'Vrouw'],
+    ])('prefills and locks gender for %s', async (relationAction, genderLabel) => {
+        render(
+            <PersonAddForm
+                relationAction={relationAction}
+                onAdd={() => {}}
+                onCancel={() => {}}
+            />
+        );
+
+        const selectedGender = screen.getByRole('radio', { name: genderLabel });
+
+        expect(selectedGender).toBeChecked();
+        expect(screen.getByRole('radio', { name: 'Onbekend' })).toBeDisabled();
+        expect(screen.getByRole('radio', { name: 'Man' })).toBeDisabled();
+        expect(screen.getByRole('radio', { name: 'Vrouw' })).toBeDisabled();
+    });
+
     it('blocks adding brother when both parents are unknown and shows warning/error on screen', async () => {
         const user = userEvent.setup();
 

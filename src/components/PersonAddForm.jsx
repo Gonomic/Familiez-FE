@@ -633,7 +633,7 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
                 disabled={isSaving}
             />
 
-            <FormControl component="fieldset" disabled={isSaving}>
+            <FormControl component="fieldset" disabled={isSaving || Boolean(genderPreset)}>
                 <FormLabel component="legend">Geslacht</FormLabel>
                 <RadioGroup
                     row
