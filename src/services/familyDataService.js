@@ -86,13 +86,14 @@ const extractRowsFromCountedResult = (data) => {
 /**
  * Normalize preferences payload and apply safe defaults for missing/invalid values.
  * @param {Object} data
- * @returns {{linked_person_id:number|null, generations_up:number, generations_down:number, auto_show_tree:boolean}}
+ * @returns {{linked_person_id:number|null, generations_up:number, generations_down:number, auto_show_tree:boolean, last_added_person_id:number|null}}
  */
 const normalizeMyPreferences = (data) => ({
     linked_person_id: data?.linked_person_id ?? null,
     generations_up: Number.isFinite(Number(data?.generations_up)) ? Number(data.generations_up) : 3,
     generations_down: Number.isFinite(Number(data?.generations_down)) ? Number(data.generations_down) : 3,
     auto_show_tree: Boolean(data?.auto_show_tree),
+    last_added_person_id: data?.last_added_person_id ?? null,
 });
 
 /**
@@ -182,25 +183,28 @@ export const getMyPreferences = async () => {
 /**
  * Save the authenticated user's own tree preferences.
  * @param {Object} payload
- * @param {number|null} payload.linked_person_id
- * @param {number} payload.generations_up
- * @param {number} payload.generations_down
- * @param {boolean} payload.auto_show_tree
- * @returns {Promise<{linked_person_id:number|null, generations_up:number, generations_down:number, auto_show_tree:boolean}>}
+ * @param {number|null} [payload.linked_person_id]
+ * @param {number} [payload.generations_up]
+ * @param {number} [payload.generations_down]
+ * @param {boolean} [payload.auto_show_tree]
+ * @param {number|null} [payload.last_added_person_id]
+ * @returns {Promise<{linked_person_id:number|null, generations_up:number, generations_down:number, auto_show_tree:boolean, last_added_person_id:number|null}>}
  */
 export const saveMyPreferences = async (payload) => {
     try {
+        const body = {};
+        if (payload?.linked_person_id !== undefined) body.linked_person_id = payload.linked_person_id;
+        if (payload?.generations_up !== undefined) body.generations_up = payload.generations_up;
+        if (payload?.generations_down !== undefined) body.generations_down = payload.generations_down;
+        if (payload?.auto_show_tree !== undefined) body.auto_show_tree = Boolean(payload.auto_show_tree);
+        if (payload?.last_added_person_id !== undefined) body.last_added_person_id = payload.last_added_person_id;
+
         const response = await fetch(`${MW_BASE_URL}/user/my-preferences`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                linked_person_id: payload?.linked_person_id ?? null,
-                generations_up: payload?.generations_up,
-                generations_down: payload?.generations_down,
-                auto_show_tree: Boolean(payload?.auto_show_tree),
-            }),
+            body: JSON.stringify(body),
         });
 
         if (response.status === 401) {

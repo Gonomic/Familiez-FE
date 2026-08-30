@@ -10,7 +10,7 @@ import PersonDeleteForm from './components/PersonDeleteForm';
 import PersonAddForm from './components/PersonAddForm';
 import PersonViewForm from './components/PersonViewForm';
 import PersonFilesForm from './components/PersonFilesForm';
-import { getPersonsLike } from './services/familyDataService';
+import { getPersonsLike, getMyPreferences, saveMyPreferences, getPersonDetails } from './services/familyDataService';
 import { getUserInfo } from './services/authService';
 import { NO_CONNECTION_ERROR_TEXT } from './constants/errorMessages';
 
@@ -27,6 +27,52 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
 
     const [nbrOfParentGenerations, setNbrOfParentGenerations] = useState('1');
     const [nbrOfChildGenerations, setNbrOfChildGenerations] = useState('1');
+    const [lastAddedPerson, setLastAddedPerson] = useState(null);
+    const [isLoadingLastAdded, setIsLoadingLastAdded] = useState(false);
+
+    // Fetch user's last added person preference when drawer opens in select mode
+    useEffect(() => {
+        let isMounted = true;
+        if (!open || mode !== 'select') {
+            return;
+        }
+
+        const fetchLastAddedPerson = async () => {
+            setIsLoadingLastAdded(true);
+            try {
+                const prefs = await getMyPreferences();
+                if (!isMounted) return;
+
+                if (prefs?.last_added_person_id) {
+                    const personDetails = await getPersonDetails(prefs.last_added_person_id);
+                    if (!isMounted) return;
+
+                    if (personDetails) {
+                        setLastAddedPerson(personDetails);
+                    } else {
+                        // Person was deleted by another user
+                        setLastAddedPerson(null);
+                        setBuildTreeError('De laatst toegevoegde persoon kon niet worden gevonden. Waarschijnlijk is deze persoon intussen door een andere gebruiker verwijderd.');
+                        await saveMyPreferences({ last_added_person_id: null });
+                    }
+                } else {
+                    setLastAddedPerson(null);
+                }
+            } catch (error) {
+                console.error('Error fetching last added person preferences:', error);
+            } finally {
+                if (isMounted) {
+                    setIsLoadingLastAdded(false);
+                }
+            }
+        };
+
+        fetchLastAddedPerson();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [open, mode]);
 
     // Update mode when personToEdit, personToDelete, personToAdd, personToView, or personForFiles changes
     useEffect(() => {
@@ -93,6 +139,33 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
         }
     };
 
+    // Handle build tree for last added person
+    const handleBuildTreeForLastAddedPerson = async () => {
+        if (!lastAddedPerson) return;
+
+        setBuildTreeError('');
+        try {
+            const freshDetails = await getPersonDetails(lastAddedPerson.PersonID);
+            if (!freshDetails) {
+                setLastAddedPerson(null);
+                setBuildTreeError('De laatst toegevoegde persoon kon niet worden gevonden. Waarschijnlijk is deze persoon intussen door een andere gebruiker verwijderd.');
+                await saveMyPreferences({ last_added_person_id: null });
+                return;
+            }
+
+            setPerson(freshDetails);
+            setInputValue(`${freshDetails.PersonGivvenName} ${freshDetails.PersonFamilyName} (${freshDetails.PersonDateOfBirth})`);
+            setNbrOfParentGenerations('1');
+            setNbrOfChildGenerations('1');
+            onPersonSelected(freshDetails, 1, 1);
+            navigate('/familiez-bewerken');
+            onClose();
+        } catch (error) {
+            console.error('Error building tree for last added person:', error);
+            setBuildTreeError(NO_CONNECTION_ERROR_TEXT);
+        }
+    };
+
     // Handle adding a new person
     const handleAddPersonClick = () => {
         // Allow adding a person with or without a parent
@@ -153,6 +226,9 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
     // Handle person added
     const handlePersonAdded = (newPerson) => {
         setMode('select');
+        if (newPerson && newPerson.PersonID) {
+            setLastAddedPerson(newPerson);
+        }
         if (onPersonAdded) {
             onPersonAdded(newPerson);
         }
@@ -246,6 +322,17 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
                                 fullWidth
                             >
                                 Toon Stamboom
+                            </Button>
+                            <Button 
+                                variant="outlined" 
+                                color="primary"
+                                disabled={!lastAddedPerson || isLoadingLastAdded}
+                                onClick={handleBuildTreeForLastAddedPerson}
+                                fullWidth
+                                sx={{ mt: 2 }}
+                            >
+                                TOON DE STAMBOOM VAN DE LAATST TOEGEVOEGDE PERSOON
+                                {lastAddedPerson && ` (${lastAddedPerson.PersonGivvenName} ${lastAddedPerson.PersonFamilyName})`}
                             </Button>
                             {isAdmin && (
                                 <Button 
