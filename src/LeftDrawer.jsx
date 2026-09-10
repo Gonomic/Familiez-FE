@@ -9,6 +9,7 @@ import ListItemText from '@mui/material/ListItemText';
 import Divider from '@mui/material/Divider';
 import CreateIcon from '@mui/icons-material/Create';
 import PermDeviceInformationIcon from '@mui/icons-material/PermDeviceInformation';
+import NewReleasesIcon from '@mui/icons-material/NewReleases';
 import SettingsSuggestIcon from '@mui/icons-material/SettingsSuggest';
 import LogoutIcon from '@mui/icons-material/Logout';
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
@@ -23,7 +24,16 @@ const hasAuthState = () => {
     return token || Boolean(roleData);
 };
 
-const icons = [<CreateIcon key="create" />, <PermDeviceInformationIcon key="info" />, <SettingsSuggestIcon key="settings" />, <GroupAddIcon key="batch" />];
+// Explicit label/path pairs: label and route no longer need to match 1:1
+// (e.g. "Familiez info" now points to the new release dashboard, while the
+// legacy release-notes page is kept reachable as "Familiez info (oud)").
+const menuItems = [
+    { label: 'Familiez bewerken', path: '/familiez-bewerken', icon: <CreateIcon key="create" /> },
+    { label: 'Familiez info', path: '/release-dashboard', icon: <NewReleasesIcon key="info-new" /> },
+    { label: 'Familiez info (oud)', path: '/familiez-info', icon: <PermDeviceInformationIcon key="info-old" /> },
+    { label: 'Familiez systeem', path: '/familiez-systeem', icon: <SettingsSuggestIcon key="settings" /> },
+    { label: 'Batch toevoegen huwelijk', path: '/batch-toevoegen-huwelijk', icon: <GroupAddIcon key="batch" /> },
+];
 
 function LeftDrawer({ open, onClose }) {
     const navigate = useNavigate();
@@ -51,13 +61,13 @@ function LeftDrawer({ open, onClose }) {
     const DrawerList = (
         <Box sx={{ width: 250, display: 'flex', flexDirection: 'column', height: '100%' }} role="presentation" onClick={onClose}>
             <List sx={{ flexGrow: 1 }}>
-                {['Familiez bewerken', 'Familiez info', 'Familiez systeem', 'Batch toevoegen huwelijk'].map((text, index) => (
-                    <ListItem key={text} disablePadding>
-                        <ListItemButton component={Link} to={`/${text.toLowerCase().replace(/ /g, '-')}`}>
+                {menuItems.map(({ label, path, icon }) => (
+                    <ListItem key={label} disablePadding>
+                        <ListItemButton component={Link} to={path}>
                             <ListItemIcon>
-                                {icons[index]}
+                                {icon}
                             </ListItemIcon>
-                            <ListItemText primary={text} />
+                            <ListItemText primary={label} />
                         </ListItemButton>
                     </ListItem>
                 ))}
