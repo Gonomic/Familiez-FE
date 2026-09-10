@@ -52,6 +52,40 @@ export const getMwBaseUrl = () => MW_BASE_URL;
 export const fetchWithAuthHeaders = fetchWithAuth;
 
 /**
+ * Get the current function registry capability graph and stack manifest.
+ * @returns {Promise<{capabilities: {functions: Array, dependencies: Array}, stackManifest: Object|null}>}
+ */
+export const getCapabilities = async () => {
+    try {
+        const response = await fetch(`${MW_BASE_URL}/capabilities`);
+
+        if (response.status === 401) {
+            clearStoredToken();
+            notifyAuthError("Uw sessie is verlopen. Meld u alstublieft opnieuw aan.");
+            throw new Error('Uw sessie is verlopen. Meld u alstublieft opnieuw aan.');
+        }
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data?.detail || NO_CONNECTION_ERROR_TEXT);
+        }
+
+        return {
+            capabilities: {
+                functions: Array.isArray(data?.capabilities?.functions) ? data.capabilities.functions : [],
+                dependencies: Array.isArray(data?.capabilities?.dependencies) ? data.capabilities.dependencies : [],
+            },
+            stackManifest: data?.stackManifest && typeof data.stackManifest === 'object'
+                ? data.stackManifest
+                : null,
+        };
+    } catch (error) {
+        console.error('Error getting capabilities:', error);
+        throw error;
+    }
+};
+
+/**
  * Build a browser-safe file URL for preview/download endpoints.
  * Browsers cannot attach Authorization headers to img/window.open, so token is passed as query parameter.
  * @param {string} path
