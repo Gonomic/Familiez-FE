@@ -1,0 +1,482 @@
+{
+  "component": "FE",
+  "version": "1.0.0",
+  "dockerImageTag": "familiez-fe:1.0.0",
+  "generatedAt": "2026-09-10T17:16:14Z",
+  "sourceCommit": "4e09a56a16f0513466cec18bfc216c6f26caafdf",
+  "functions": [
+    {
+      "layer": "FE",
+      "name": "initiateSSOLogin",
+      "file": "authService.js",
+      "line": 169,
+      "type": "async-arrow",
+      "parameters": [],
+      "signatureHash": "sha256:6c870702dbad3c5fa4e90585a011f5ca274edc63f7fa6f012c5023c37e9a9863"
+    },
+    {
+      "layer": "FE",
+      "name": "exchangeCodeForToken",
+      "file": "authService.js",
+      "line": 217,
+      "type": "async-arrow",
+      "parameters": [
+        "code",
+        "state"
+      ],
+      "signatureHash": "sha256:44008b9149df7c6b007ecf4564b8226643c3e0b025ff57f19495d485a1f3a125"
+    },
+    {
+      "layer": "FE",
+      "name": "getStoredToken",
+      "file": "authService.js",
+      "line": 293,
+      "type": "arrow",
+      "parameters": [],
+      "signatureHash": "sha256:8a74ccdf62ef5261db729efa2ee5e3105dda578a069ed34b13e4322afac01294"
+    },
+    {
+      "layer": "FE",
+      "name": "hasServerSession",
+      "file": "authService.js",
+      "line": 295,
+      "type": "async-arrow",
+      "parameters": [],
+      "signatureHash": "sha256:6ee3b9e8f2eb8e06a3727d4943d99964aa1f7f6a38a8a8949018e314a082c125"
+    },
+    {
+      "layer": "FE",
+      "name": "clearStoredToken",
+      "file": "authService.js",
+      "line": 333,
+      "type": "arrow",
+      "parameters": [],
+      "signatureHash": "sha256:fab0767affd92fe8d6de328461541a8b286320d5735e8348414264fb54f26dfd"
+    },
+    {
+      "layer": "FE",
+      "name": "initiateSSOLogout",
+      "file": "authService.js",
+      "line": 347,
+      "type": "async-arrow",
+      "parameters": [],
+      "signatureHash": "sha256:279193be4196a684aaf2a782ef100787a9f2f4e0d48bb2d0f62b9300fa5c31a2"
+    },
+    {
+      "layer": "FE",
+      "name": "sendSessionKeepalive",
+      "file": "authService.js",
+      "line": 392,
+      "type": "async-arrow",
+      "parameters": [],
+      "signatureHash": "sha256:7b337dd53c99a33e86672479214bfea6ecfe5eac888deff624b3f97d8cf4323c"
+    },
+    {
+      "layer": "FE",
+      "name": "startSessionKeepalive",
+      "file": "authService.js",
+      "line": 429,
+      "type": "arrow",
+      "parameters": [],
+      "signatureHash": "sha256:dc79398239eb9273a613b222d833e61d4a95f149fa438d45565d06c23f05d013"
+    },
+    {
+      "layer": "FE",
+      "name": "stopSessionKeepalive",
+      "file": "authService.js",
+      "line": 444,
+      "type": "arrow",
+      "parameters": [],
+      "signatureHash": "sha256:8b3d123a13a431aea3cf9609bdb99e0256c52060c9ea3fa7afa735d1451255db"
+    },
+    {
+      "layer": "FE",
+      "name": "notifyAuthError",
+      "file": "authService.js",
+      "line": 453,
+      "type": "arrow",
+      "parameters": [
+        "message = \"Sessie verlopen. Controleer uw inloggegevens.\""
+      ],
+      "signatureHash": "sha256:4a067301614ec8270b9fbfdccece7c1d45ec7e79d3f47ca6182ee0205398fd3b"
+    },
+    {
+      "layer": "FE",
+      "name": "setAuthHeader",
+      "file": "authService.js",
+      "line": 458,
+      "type": "arrow",
+      "parameters": [
+        "token"
+      ],
+      "signatureHash": "sha256:f578ae2bd1aec9270c3b948947b403fa142af6c75c2a4a807a78cb0366a8a34e"
+    },
+    {
+      "layer": "FE",
+      "name": "decodeToken",
+      "file": "authService.js",
+      "line": 462,
+      "type": "arrow",
+      "parameters": [
+        "token"
+      ],
+      "signatureHash": "sha256:cdb3643972d2e7e0eaa4f3515d64f3f2fa51da3b69d63f457fb63bf1bcaf81b2"
+    },
+    {
+      "layer": "FE",
+      "name": "getUserInfo",
+      "file": "authService.js",
+      "line": 476,
+      "type": "arrow",
+      "parameters": [],
+      "signatureHash": "sha256:a54cf0180d2f3622204be0dfce7226d2311e9fe2c876576e82e4e5dc07cc588c"
+    },
+    {
+      "layer": "FE",
+      "name": "fetchUserRole",
+      "file": "authService.js",
+      "line": 547,
+      "type": "async-arrow",
+      "parameters": [],
+      "signatureHash": "sha256:fcf57f84a929815e813e7ba65dd35c70784e92c3d495a0b9c5f7d7768f8a2438"
+    },
+    {
+      "layer": "FE",
+      "name": "getMwBaseUrl",
+      "file": "familyDataService.js",
+      "line": 51,
+      "type": "arrow",
+      "parameters": [],
+      "signatureHash": "sha256:bbdfed5e31710e556f62705ee3a7d978bf2dc2356c40fcb444a6dd1d15c4d72a"
+    },
+    {
+      "layer": "FE",
+      "name": "buildFileAccessUrl",
+      "file": "familyDataService.js",
+      "line": 60,
+      "type": "arrow",
+      "parameters": [
+        "path"
+      ],
+      "signatureHash": "sha256:16998f70c57aeaeaccf14e556c61b3cc95de84760b460cf7441d1108228e35f0"
+    },
+    {
+      "layer": "FE",
+      "name": "getPersonsLike",
+      "file": "familyDataService.js",
+      "line": 105,
+      "type": "async-arrow",
+      "parameters": [
+        "searchString",
+        "options = {}"
+      ],
+      "signatureHash": "sha256:b2998925d183b019c2b36d39e818faed5c8c80536fab8d3d6c924a1fa512a3fc"
+    },
+    {
+      "layer": "FE",
+      "name": "getMyPreferences",
+      "file": "familyDataService.js",
+      "line": 160,
+      "type": "async-arrow",
+      "parameters": [],
+      "signatureHash": "sha256:89592a256592c1bfcfde3664d90c62e8fffc1b8cb270cc7eaec6add06fc7719d"
+    },
+    {
+      "layer": "FE",
+      "name": "saveMyPreferences",
+      "file": "familyDataService.js",
+      "line": 193,
+      "type": "async-arrow",
+      "parameters": [
+        "payload"
+      ],
+      "signatureHash": "sha256:069fb5caa9627620b97577ad6abf6fe5f7b29cf6995460b29fafc18295bc6b0d"
+    },
+    {
+      "layer": "FE",
+      "name": "getPersonDetails",
+      "file": "familyDataService.js",
+      "line": 235,
+      "type": "async-arrow",
+      "parameters": [
+        "personId",
+        "options = {}"
+      ],
+      "signatureHash": "sha256:645c910b452ce4866d32cfc60045e5eb52caaa12d26ddaf596f2e1077b47aa71"
+    },
+    {
+      "layer": "FE",
+      "name": "getFather",
+      "file": "familyDataService.js",
+      "line": 275,
+      "type": "async-arrow",
+      "parameters": [
+        "childId",
+        "options = {}"
+      ],
+      "signatureHash": "sha256:436c83d4af6626f8868b5786bbfa4f3a13dabbf09e349723d03001936b752e9f"
+    },
+    {
+      "layer": "FE",
+      "name": "getMother",
+      "file": "familyDataService.js",
+      "line": 315,
+      "type": "async-arrow",
+      "parameters": [
+        "childId",
+        "options = {}"
+      ],
+      "signatureHash": "sha256:fcfe15e6621dbfaf7a84ca1d0d9d9eb9227d7519d16094649366fbc8a51ac14d"
+    },
+    {
+      "layer": "FE",
+      "name": "getSiblings",
+      "file": "familyDataService.js",
+      "line": 354,
+      "type": "async-arrow",
+      "parameters": [
+        "parentId"
+      ],
+      "signatureHash": "sha256:d61ddbb02f1a4c64710119ff3c3057e160b376f430013b0815a44eaeddb36322"
+    },
+    {
+      "layer": "FE",
+      "name": "getPartners",
+      "file": "familyDataService.js",
+      "line": 387,
+      "type": "async-arrow",
+      "parameters": [
+        "personId",
+        "options = {}"
+      ],
+      "signatureHash": "sha256:ee35f830d825b40581588022d4b480bbcbeb4ec515ac8cea64a1c90225cc4491"
+    },
+    {
+      "layer": "FE",
+      "name": "getChildren",
+      "file": "familyDataService.js",
+      "line": 444,
+      "type": "async-arrow",
+      "parameters": [
+        "personId",
+        "options = {}"
+      ],
+      "signatureHash": "sha256:9720fd7336118e8503cf7faf88466a1bbfc838cb06bef0984d3aadb69ce91200"
+    },
+    {
+      "layer": "FE",
+      "name": "getPossibleMothersBasedOnAge",
+      "file": "familyDataService.js",
+      "line": 484,
+      "type": "async-arrow",
+      "parameters": [
+        "personDateOfBirth",
+        "options = {}"
+      ],
+      "signatureHash": "sha256:84d781e6dc97b6501f101b1721fc5d60e451dcbf4a8df247240af656cd7531fd"
+    },
+    {
+      "layer": "FE",
+      "name": "getPossibleFathersBasedOnAge",
+      "file": "familyDataService.js",
+      "line": 518,
+      "type": "async-arrow",
+      "parameters": [
+        "personDateOfBirth",
+        "options = {}"
+      ],
+      "signatureHash": "sha256:11debef4b07556c26507a00ae9cd899d0ec42215858ee0ee42b5325643203aae"
+    },
+    {
+      "layer": "FE",
+      "name": "getPossiblePartnersBasedOnAge",
+      "file": "familyDataService.js",
+      "line": 552,
+      "type": "async-arrow",
+      "parameters": [
+        "personDateOfBirth",
+        "options = {}"
+      ],
+      "signatureHash": "sha256:199fa538f57aa96ba1d8c36912ffacb76814c5854625aa48ec8e36675dd38653"
+    },
+    {
+      "layer": "FE",
+      "name": "getReleases",
+      "file": "familyDataService.js",
+      "line": 585,
+      "type": "async-arrow",
+      "parameters": [
+        "component"
+      ],
+      "signatureHash": "sha256:7beecea57217ce28aea2e69e123708ab837f18cbe23a0d53919568a00829db77"
+    },
+    {
+      "layer": "FE",
+      "name": "getActiveMarriageForPerson",
+      "file": "familyDataService.js",
+      "line": 606,
+      "type": "async-arrow",
+      "parameters": [
+        "personId"
+      ],
+      "signatureHash": "sha256:bedccbbae09f9ffc3ade929eb31da17fae50077ed023085357e421ebbb3b8ce6"
+    },
+    {
+      "layer": "FE",
+      "name": "getMarriageHistoryForPerson",
+      "file": "familyDataService.js",
+      "line": 629,
+      "type": "async-arrow",
+      "parameters": [
+        "personId"
+      ],
+      "signatureHash": "sha256:0fc90c880b2daf1bf16fd303106955d4d8882cbbf63114384e2885755301d4cf"
+    },
+    {
+      "layer": "FE",
+      "name": "getActiveMarriageForPair",
+      "file": "familyDataService.js",
+      "line": 652,
+      "type": "async-arrow",
+      "parameters": [
+        "personAId",
+        "personBId"
+      ],
+      "signatureHash": "sha256:bb787bc414e122620a62a3d5f635c169f640d7e6ff9e57b90a780f51ffa1d72c"
+    },
+    {
+      "layer": "FE",
+      "name": "createMarriage",
+      "file": "familyDataService.js",
+      "line": 679,
+      "type": "async-arrow",
+      "parameters": [
+        "{ personAId, personBId, startDate, marriagePlace = null }"
+      ],
+      "signatureHash": "sha256:2056b60b7c68abf907bf500d78e55961e1f663a008a6fe606b00c79f38dc2138"
+    },
+    {
+      "layer": "FE",
+      "name": "endMarriage",
+      "file": "familyDataService.js",
+      "line": 723,
+      "type": "async-arrow",
+      "parameters": [
+        "marriageId",
+        "{ personAId, personBId, endDate, endReason }"
+      ],
+      "signatureHash": "sha256:fd1102703edd9b11949727f54a20d1e3d92fb28d958a08794df16440ef771ba4"
+    },
+    {
+      "layer": "FE",
+      "name": "updateMarriageStartDate",
+      "file": "familyDataService.js",
+      "line": 767,
+      "type": "async-arrow",
+      "parameters": [
+        "marriageId",
+        "{ personAId, personBId, startDate, marriagePlace = null }"
+      ],
+      "signatureHash": "sha256:143de43fabe792ea4b42bf3ff2c3099a7189dfa3b524e42f64a99a6bcc9ba750"
+    },
+    {
+      "layer": "FE",
+      "name": "getPossibleMarriagePairs",
+      "file": "familyDataService.js",
+      "line": 805,
+      "type": "async-arrow",
+      "parameters": [],
+      "signatureHash": "sha256:5790de64713d2a7cbe813b88fac38af1d33ab201ae08cacac08947787cfe717e"
+    },
+    {
+      "layer": "FE",
+      "name": "updatePerson",
+      "file": "familyDataService.js",
+      "line": 851,
+      "type": "async-arrow",
+      "parameters": [
+        "personId",
+        "personData"
+      ],
+      "signatureHash": "sha256:73831caa5cc91013a3fa3768418dee0e35bc6710e6b8d62c8a41afafa4a85865"
+    },
+    {
+      "layer": "FE",
+      "name": "deletePerson",
+      "file": "familyDataService.js",
+      "line": 885,
+      "type": "async-arrow",
+      "parameters": [
+        "person"
+      ],
+      "signatureHash": "sha256:96c1b478b19def42c07ebfc976bf7042c6205c7caf1e60f504c7e6962f3b9134"
+    },
+    {
+      "layer": "FE",
+      "name": "addPerson",
+      "file": "familyDataService.js",
+      "line": 914,
+      "type": "async-arrow",
+      "parameters": [
+        "personData"
+      ],
+      "signatureHash": "sha256:c29074f2616fba939feba4aa7fa62fe859ffff9259f6b207ef270d4fce151493"
+    },
+    {
+      "layer": "FE",
+      "name": "uploadDocumentFile",
+      "file": "familyDataService.js",
+      "line": 948,
+      "type": "async-arrow",
+      "parameters": [
+        "{ file, scope, entityId, documentType, year, personData }"
+      ],
+      "signatureHash": "sha256:d0326cc835b6c2db5adb03b5d72909de48d5d93ef92a596c1026f8686d8d15f1"
+    },
+    {
+      "layer": "FE",
+      "name": "getPersonFiles",
+      "file": "familyDataService.js",
+      "line": 1002,
+      "type": "async-arrow",
+      "parameters": [
+        "personId"
+      ],
+      "signatureHash": "sha256:042a6ac2f04bd57cdb8d369913e241b88913db8c8f084f563abd3f3c7718f726"
+    },
+    {
+      "layer": "FE",
+      "name": "getPersonPortraitUrl",
+      "file": "familyDataService.js",
+      "line": 1025,
+      "type": "async-arrow",
+      "parameters": [
+        "personId"
+      ],
+      "signatureHash": "sha256:aabd196ff916e3093a43c80e5a78ff08919888ee009c47a5d85c1ee3bc9ae93f"
+    },
+    {
+      "layer": "FE",
+      "name": "getFamilyFiles",
+      "file": "familyDataService.js",
+      "line": 1040,
+      "type": "async-arrow",
+      "parameters": [
+        "fatherId",
+        "motherId"
+      ],
+      "signatureHash": "sha256:17e74326990026891a6dd9961bf8f99c5baa0d7e12d87397aaefe1b2301d11d6"
+    },
+    {
+      "layer": "FE",
+      "name": "getFileBlob",
+      "file": "familyDataService.js",
+      "line": 1063,
+      "type": "async-arrow",
+      "parameters": [
+        "fileId"
+      ],
+      "signatureHash": "sha256:db5dc3bd971d683be863e56869ff78f10bf7b1cc2da58aa49f0f8f834e31add5"
+    }
+  ]
+}
