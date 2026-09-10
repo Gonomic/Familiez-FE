@@ -3,6 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { execFileSync } from 'node:child_process';
 import { scanServices } from './scan-fe-functions.mjs';
+import { computeNextVersion } from './next-version.mjs';
 
 const DEFAULT_VERSION = '1.0.0';
 
@@ -42,8 +43,22 @@ export function main(argv = process.argv.slice(2)) {
     if (argv[index] === '--root') options.root = path.resolve(argv[++index]);
     if (argv[index] === '--output') options.output = path.resolve(argv[++index]);
   }
-  const manifest = buildManifest(options);
   const output = options.output ?? path.join(options.root, 'versioning/manifest.json');
+  if (!options.version) {
+    if (fs.existsSync(output)) {
+      const proposal = computeNextVersion({ root: options.root, manifestPath: output });
+      if (proposal.status !== 'ok') {
+        console.error(`Bump engine requires manual review, refusing to auto-generate: ${JSON.stringify(proposal)}`);
+        return proposal.status === 'manual_review' ? 3 : 2;
+      }
+      options.version = proposal.to;
+      console.log(`Bump engine proposes ${proposal.from} -> ${proposal.to} (${proposal.bump}: ${(proposal.reasons ?? []).join(', ')})`);
+    } else {
+      options.version = DEFAULT_VERSION;
+      console.log(`No previous manifest found; bootstrapping at ${DEFAULT_VERSION}`);
+    }
+  }
+  const manifest = buildManifest(options);
   fs.mkdirSync(path.dirname(output), { recursive: true });
   fs.writeFileSync(output, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   return 0;
