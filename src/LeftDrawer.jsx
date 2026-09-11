@@ -26,11 +26,9 @@ const hasAuthState = () => {
 
 // Explicit label/path pairs: label and route no longer need to match 1:1
 // (e.g. "Familiez info" now points to the new release dashboard, while the
-// legacy release-notes page is kept reachable as "Familiez info (oud)").
 const menuItems = [
     { label: 'Familiez bewerken', path: '/familiez-bewerken', icon: <CreateIcon key="create" /> },
     { label: 'Familiez info', path: '/release-dashboard', icon: <NewReleasesIcon key="info-new" /> },
-    { label: 'Familiez info (oud)', path: '/familiez-info', icon: <PermDeviceInformationIcon key="info-old" /> },
     { label: 'Familiez systeem', path: '/familiez-systeem', icon: <SettingsSuggestIcon key="settings" /> },
     { label: 'Batch toevoegen huwelijk', path: '/batch-toevoegen-huwelijk', icon: <GroupAddIcon key="batch" /> },
 ];

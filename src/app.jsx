@@ -7,7 +7,6 @@ import RightDrawer from './RightDrawer';
 import Footer from './Footer';
 
 import FamiliezBewerken from './FamiliezBewerken';
-import FamiliezInfo from './FamiliezInfo';
 import FamiliezSysteem from './FamiliezSysteem';
 import BatchAddMarriages from './components/BatchAddMarriages';
 import LoginPage from './pages/LoginPage';
@@ -324,21 +323,6 @@ const AppContent = () => {
           </RequireAuth>
         } 
       />
-      <Route path="/familiez-info" element={
-        <RequireAuth>
-          <>
-            <TopBar toggleLeftDrawer={toggleLeftDrawer} toggleRightDrawer={toggleRightDrawer} />
-            <LeftDrawer open={leftDrawerOpen} onClose={handleLeftDrawerClose} />
-            <RightDrawer 
-              open={rightDrawerOpen} 
-              onClose={handleRightDrawerClose} 
-              onPersonSelected={handlePersonSelected}
-            />
-            <FamiliezInfo />
-            <Footer />
-          </>
-        </RequireAuth>
-      } />
       <Route path="/release-dashboard" element={
         <RequireAuth>
           <>
