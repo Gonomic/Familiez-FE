@@ -632,6 +632,14 @@ export const getReleases = async (component) => {
     }
 };
 
+export const getVersioningValidationProbe = async () => {
+    const response = await fetch(`${MW_BASE_URL}/versioning-validation-probe`);
+    if (!response.ok) {
+        throw new Error(`Versioning validation probe failed: ${response.status}`);
+    }
+    return response.json();
+};
+
 /**
  * Get active marriage for a person.
  * @param {number} personId - Person ID

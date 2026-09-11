@@ -1,9 +1,9 @@
 {
   "component": "FE",
-  "version": "1.0.0",
-  "dockerImageTag": "familiez-fe:1.0.0",
-  "generatedAt": "2026-09-10T17:16:14Z",
-  "sourceCommit": "4e09a56a16f0513466cec18bfc216c6f26caafdf",
+  "version": "3.0.0",
+  "dockerImageTag": "familiez-fe:3.0.0",
+  "generatedAt": "2026-09-11T22:08:21Z",
+  "sourceCommit": "935367a736c6403446967978ec7259de4e39e85c",
   "functions": [
     {
       "layer": "FE",
@@ -151,9 +151,18 @@
     },
     {
       "layer": "FE",
+      "name": "getCapabilities",
+      "file": "familyDataService.js",
+      "line": 58,
+      "type": "async-arrow",
+      "parameters": [],
+      "signatureHash": "sha256:50b202223062bd2ec1128e00c4d3a4d3747c8be0f496311dc48b4de3d5d47641"
+    },
+    {
+      "layer": "FE",
       "name": "buildFileAccessUrl",
       "file": "familyDataService.js",
-      "line": 60,
+      "line": 94,
       "type": "arrow",
       "parameters": [
         "path"
@@ -164,7 +173,7 @@
       "layer": "FE",
       "name": "getPersonsLike",
       "file": "familyDataService.js",
-      "line": 105,
+      "line": 139,
       "type": "async-arrow",
       "parameters": [
         "searchString",
@@ -176,7 +185,7 @@
       "layer": "FE",
       "name": "getMyPreferences",
       "file": "familyDataService.js",
-      "line": 160,
+      "line": 194,
       "type": "async-arrow",
       "parameters": [],
       "signatureHash": "sha256:89592a256592c1bfcfde3664d90c62e8fffc1b8cb270cc7eaec6add06fc7719d"
@@ -185,7 +194,7 @@
       "layer": "FE",
       "name": "saveMyPreferences",
       "file": "familyDataService.js",
-      "line": 193,
+      "line": 227,
       "type": "async-arrow",
       "parameters": [
         "payload"
@@ -196,7 +205,7 @@
       "layer": "FE",
       "name": "getPersonDetails",
       "file": "familyDataService.js",
-      "line": 235,
+      "line": 269,
       "type": "async-arrow",
       "parameters": [
         "personId",
@@ -208,7 +217,7 @@
       "layer": "FE",
       "name": "getFather",
       "file": "familyDataService.js",
-      "line": 275,
+      "line": 309,
       "type": "async-arrow",
       "parameters": [
         "childId",
@@ -220,7 +229,7 @@
       "layer": "FE",
       "name": "getMother",
       "file": "familyDataService.js",
-      "line": 315,
+      "line": 349,
       "type": "async-arrow",
       "parameters": [
         "childId",
@@ -232,7 +241,7 @@
       "layer": "FE",
       "name": "getSiblings",
       "file": "familyDataService.js",
-      "line": 354,
+      "line": 388,
       "type": "async-arrow",
       "parameters": [
         "parentId"
@@ -243,7 +252,7 @@
       "layer": "FE",
       "name": "getPartners",
       "file": "familyDataService.js",
-      "line": 387,
+      "line": 421,
       "type": "async-arrow",
       "parameters": [
         "personId",
@@ -255,7 +264,7 @@
       "layer": "FE",
       "name": "getChildren",
       "file": "familyDataService.js",
-      "line": 444,
+      "line": 478,
       "type": "async-arrow",
       "parameters": [
         "personId",
@@ -267,7 +276,7 @@
       "layer": "FE",
       "name": "getPossibleMothersBasedOnAge",
       "file": "familyDataService.js",
-      "line": 484,
+      "line": 518,
       "type": "async-arrow",
       "parameters": [
         "personDateOfBirth",
@@ -279,7 +288,7 @@
       "layer": "FE",
       "name": "getPossibleFathersBasedOnAge",
       "file": "familyDataService.js",
-      "line": 518,
+      "line": 552,
       "type": "async-arrow",
       "parameters": [
         "personDateOfBirth",
@@ -291,7 +300,7 @@
       "layer": "FE",
       "name": "getPossiblePartnersBasedOnAge",
       "file": "familyDataService.js",
-      "line": 552,
+      "line": 586,
       "type": "async-arrow",
       "parameters": [
         "personDateOfBirth",
@@ -303,7 +312,7 @@
       "layer": "FE",
       "name": "getReleases",
       "file": "familyDataService.js",
-      "line": 585,
+      "line": 619,
       "type": "async-arrow",
       "parameters": [
         "component"
@@ -312,9 +321,18 @@
     },
     {
       "layer": "FE",
+      "name": "getVersioningValidationProbe",
+      "file": "familyDataService.js",
+      "line": 635,
+      "type": "async-arrow",
+      "parameters": [],
+      "signatureHash": "sha256:f3df0fd81a309eb61f2f763c60fd6a5f423d17e29a7c25fbdcbbac11066d8137"
+    },
+    {
+      "layer": "FE",
       "name": "getActiveMarriageForPerson",
       "file": "familyDataService.js",
-      "line": 606,
+      "line": 648,
       "type": "async-arrow",
       "parameters": [
         "personId"
@@ -325,7 +343,7 @@
       "layer": "FE",
       "name": "getMarriageHistoryForPerson",
       "file": "familyDataService.js",
-      "line": 629,
+      "line": 671,
       "type": "async-arrow",
       "parameters": [
         "personId"
@@ -336,7 +354,7 @@
       "layer": "FE",
       "name": "getActiveMarriageForPair",
       "file": "familyDataService.js",
-      "line": 652,
+      "line": 694,
       "type": "async-arrow",
       "parameters": [
         "personAId",
@@ -348,7 +366,7 @@
       "layer": "FE",
       "name": "createMarriage",
       "file": "familyDataService.js",
-      "line": 679,
+      "line": 721,
       "type": "async-arrow",
       "parameters": [
         "{ personAId, personBId, startDate, marriagePlace = null }"
@@ -359,7 +377,7 @@
       "layer": "FE",
       "name": "endMarriage",
       "file": "familyDataService.js",
-      "line": 723,
+      "line": 765,
       "type": "async-arrow",
       "parameters": [
         "marriageId",
@@ -371,7 +389,7 @@
       "layer": "FE",
       "name": "updateMarriageStartDate",
       "file": "familyDataService.js",
-      "line": 767,
+      "line": 809,
       "type": "async-arrow",
       "parameters": [
         "marriageId",
@@ -383,7 +401,7 @@
       "layer": "FE",
       "name": "getPossibleMarriagePairs",
       "file": "familyDataService.js",
-      "line": 805,
+      "line": 847,
       "type": "async-arrow",
       "parameters": [],
       "signatureHash": "sha256:5790de64713d2a7cbe813b88fac38af1d33ab201ae08cacac08947787cfe717e"
@@ -392,7 +410,7 @@
       "layer": "FE",
       "name": "updatePerson",
       "file": "familyDataService.js",
-      "line": 851,
+      "line": 893,
       "type": "async-arrow",
       "parameters": [
         "personId",
@@ -404,7 +422,7 @@
       "layer": "FE",
       "name": "deletePerson",
       "file": "familyDataService.js",
-      "line": 885,
+      "line": 927,
       "type": "async-arrow",
       "parameters": [
         "person"
@@ -415,7 +433,7 @@
       "layer": "FE",
       "name": "addPerson",
       "file": "familyDataService.js",
-      "line": 914,
+      "line": 956,
       "type": "async-arrow",
       "parameters": [
         "personData"
@@ -426,7 +444,7 @@
       "layer": "FE",
       "name": "uploadDocumentFile",
       "file": "familyDataService.js",
-      "line": 948,
+      "line": 990,
       "type": "async-arrow",
       "parameters": [
         "{ file, scope, entityId, documentType, year, personData }"
@@ -437,7 +455,7 @@
       "layer": "FE",
       "name": "getPersonFiles",
       "file": "familyDataService.js",
-      "line": 1002,
+      "line": 1044,
       "type": "async-arrow",
       "parameters": [
         "personId"
@@ -448,7 +466,7 @@
       "layer": "FE",
       "name": "getPersonPortraitUrl",
       "file": "familyDataService.js",
-      "line": 1025,
+      "line": 1067,
       "type": "async-arrow",
       "parameters": [
         "personId"
@@ -459,7 +477,7 @@
       "layer": "FE",
       "name": "getFamilyFiles",
       "file": "familyDataService.js",
-      "line": 1040,
+      "line": 1082,
       "type": "async-arrow",
       "parameters": [
         "fatherId",
@@ -471,7 +489,7 @@
       "layer": "FE",
       "name": "getFileBlob",
       "file": "familyDataService.js",
-      "line": 1063,
+      "line": 1105,
       "type": "async-arrow",
       "parameters": [
         "fileId"
