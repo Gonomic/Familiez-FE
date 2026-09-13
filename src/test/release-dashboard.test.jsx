@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import ReleaseDashboardPage from '../pages/ReleaseDashboardPage';
 import { getCapabilities } from '../services/familyDataService';
@@ -8,7 +8,7 @@ vi.mock('../services/familyDataService', () => ({
 }));
 
 describe('ReleaseDashboardPage', () => {
-    it('shows registry and stack status', async () => {
+    it('shows component versions with collapsed component registries', async () => {
         getCapabilities.mockResolvedValue({
             capabilities: {
                 functions: [{ layer: 'MW', name: 'get_person', version: 'v2' }],
@@ -25,9 +25,14 @@ describe('ReleaseDashboardPage', () => {
 
         expect(screen.getByLabelText('Laden')).toBeInTheDocument();
         await waitFor(() => expect(screen.getByText('Systeemcapaciteiten')).toBeInTheDocument());
-        expect(screen.getByText(/get_person/)).toBeInTheDocument();
         expect(screen.getByText('passed')).toBeInTheDocument();
         expect(screen.getByText('42')).toBeInTheDocument();
+        expect(screen.getByText('FE')).toBeInTheDocument();
+        expect(screen.getByText('MW')).toBeInTheDocument();
+        expect(screen.getByText(/get_person/)).not.toBeVisible();
+
+        fireEvent.click(screen.getByRole('button', { name: /MW.*1 functie/ }));
+        expect(screen.getByText('get_person')).toBeVisible();
     });
 
     it('shows request errors', async () => {

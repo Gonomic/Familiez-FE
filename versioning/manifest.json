@@ -1,9 +1,9 @@
 {
   "component": "FE",
-  "version": "4.0.0",
-  "dockerImageTag": "familiez-fe:4.0.0",
-  "generatedAt": "2026-09-11T22:34:03Z",
-  "sourceCommit": "f85045c3adc67a64b70f1c9c4caba81d372f5135",
+  "version": "4.0.1",
+  "dockerImageTag": "familiez-fe:4.0.1",
+  "generatedAt": "2026-09-13T10:20:47Z",
+  "sourceCommit": "ad203e734b04131a92fe7ace7a9f2a93a6ae8953",
   "functions": [
     {
       "layer": "FE",
