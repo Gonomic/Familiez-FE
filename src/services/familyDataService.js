@@ -56,11 +56,35 @@ export const fetchWithAuthHeaders = fetchWithAuth;
  * @returns {Promise<number|null>}
  */
 export const getStackBuildNumber = async () => {
-    const response = await window.fetch(`${MW_BASE_URL}/versioning/stack-build`);
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-        throw new Error(data?.detail || NO_CONNECTION_ERROR_TEXT);
+    let response;
+    try {
+        response = await window.fetch(`${MW_BASE_URL}/versioning/stack-build`);
+    } catch (error) {
+        error.code = 'STACK_BUILD_UNAVAILABLE';
+        throw error;
     }
+
+    let data;
+    try {
+        data = await response.json();
+    } catch {
+        const error = new Error('Invalid stack build response');
+        error.code = 'INVALID_STACK_BUILD_RESPONSE';
+        throw error;
+    }
+
+    if (!response.ok) {
+        const error = new Error(data?.detail || NO_CONNECTION_ERROR_TEXT);
+        error.code = 'STACK_BUILD_UNAVAILABLE';
+        throw error;
+    }
+
+    if (data?.stackBuildNumber !== null && !Number.isInteger(data?.stackBuildNumber)) {
+        const error = new Error('Invalid stack build response');
+        error.code = 'INVALID_STACK_BUILD_RESPONSE';
+        throw error;
+    }
+
     return Number.isInteger(data?.stackBuildNumber) ? data.stackBuildNumber : null;
 };
 

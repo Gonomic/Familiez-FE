@@ -8,15 +8,26 @@ import '../styles/LoginPage.css';
 export default function LoginPage() {
   const navigate = useNavigate();
   const [stackBuildNumber, setStackBuildNumber] = useState(null);
+  const [stackBuildReason, setStackBuildReason] = useState('middleware of database niet actief');
 
   useEffect(() => {
     let isMounted = true;
     getStackBuildNumber()
       .then((buildNumber) => {
-        if (isMounted) setStackBuildNumber(buildNumber);
+        if (isMounted) {
+          setStackBuildNumber(buildNumber);
+          setStackBuildReason('middleware of database niet actief');
+        }
       })
-      .catch(() => {
-        if (isMounted) setStackBuildNumber(null);
+      .catch((error) => {
+        if (isMounted) {
+          setStackBuildNumber(null);
+          setStackBuildReason(
+            error.code === 'INVALID_STACK_BUILD_RESPONSE'
+              ? 'ongeldige versie-informatie ontvangen'
+              : 'middleware of database niet actief'
+          );
+        }
       });
 
     return () => {
@@ -39,7 +50,10 @@ export default function LoginPage() {
         <div className="login-logo-wrap">
           <img src={FamiliezSplash} alt="Familiez" className="login-logo" />
         </div>
-        <p className="login-build">Build {stackBuildNumber ?? 'onbekend'}</p>
+        <p className="login-build">
+          Build {stackBuildNumber ?? 'onbekend'}
+          {stackBuildNumber === null && <span> ({stackBuildReason})</span>}
+        </p>
         <p>Familie Beheer Systeem</p>
         
         <button 
