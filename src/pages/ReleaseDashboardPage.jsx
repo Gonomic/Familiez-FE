@@ -95,7 +95,7 @@ const ReleaseDashboardPage = () => {
                             <Typography color="text.secondary">Afhankelijkheden</Typography>
                             <Typography variant="h5">{dependencies.length}</Typography>
                             <Typography variant="caption" color="text.secondary" display="block">
-                                (FE/MW) &lt;-&gt; MW/DB)
+                                (FE/MW) &lt;-&gt; (MW/DB)
                             </Typography>
                         </CardContent></Card>
                     </Box>

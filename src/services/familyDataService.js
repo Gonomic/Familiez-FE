@@ -52,6 +52,19 @@ export const getMwBaseUrl = () => MW_BASE_URL;
 export const fetchWithAuthHeaders = fetchWithAuth;
 
 /**
+ * Get the active stack build number for the unauthenticated login screen.
+ * @returns {Promise<number|null>}
+ */
+export const getStackBuildNumber = async () => {
+    const response = await window.fetch(`${MW_BASE_URL}/versioning/stack-build`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data?.detail || NO_CONNECTION_ERROR_TEXT);
+    }
+    return Number.isInteger(data?.stackBuildNumber) ? data.stackBuildNumber : null;
+};
+
+/**
  * Get the current function registry capability graph and stack manifest.
  * @returns {Promise<{capabilities: {functions: Array, dependencies: Array}, stackManifest: Object|null}>}
  */
