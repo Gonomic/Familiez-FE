@@ -7,11 +7,11 @@ import RightDrawer from './RightDrawer';
 import Footer from './Footer';
 
 import FamiliezBewerken from './FamiliezBewerken';
-import FamiliezInfo from './FamiliezInfo';
 import FamiliezSysteem from './FamiliezSysteem';
 import BatchAddMarriages from './components/BatchAddMarriages';
 import LoginPage from './pages/LoginPage';
 import AuthCallback from './pages/AuthCallback';
+import ReleaseDashboardPage from './pages/ReleaseDashboardPage';
 import { getStoredToken, hasServerSession, startSessionKeepalive } from './services/authService';
 import { getMyPreferences } from './services/familyDataService';
 
@@ -323,17 +323,12 @@ const AppContent = () => {
           </RequireAuth>
         } 
       />
-      <Route path="/familiez-info" element={
+      <Route path="/release-dashboard" element={
         <RequireAuth>
           <>
             <TopBar toggleLeftDrawer={toggleLeftDrawer} toggleRightDrawer={toggleRightDrawer} />
             <LeftDrawer open={leftDrawerOpen} onClose={handleLeftDrawerClose} />
-            <RightDrawer 
-              open={rightDrawerOpen} 
-              onClose={handleRightDrawerClose} 
-              onPersonSelected={handlePersonSelected}
-            />
-            <FamiliezInfo />
+            <ReleaseDashboardPage />
             <Footer />
           </>
         </RequireAuth>

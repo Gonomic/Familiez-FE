@@ -52,6 +52,77 @@ export const getMwBaseUrl = () => MW_BASE_URL;
 export const fetchWithAuthHeaders = fetchWithAuth;
 
 /**
+ * Get the active stack build number for the unauthenticated login screen.
+ * @returns {Promise<number|null>}
+ */
+export const getStackBuildNumber = async () => {
+    let response;
+    try {
+        response = await window.fetch(`${MW_BASE_URL}/versioning/stack-build`);
+    } catch (error) {
+        error.code = 'STACK_BUILD_UNAVAILABLE';
+        throw error;
+    }
+
+    let data;
+    try {
+        data = await response.json();
+    } catch {
+        const error = new Error('Invalid stack build response');
+        error.code = 'INVALID_STACK_BUILD_RESPONSE';
+        throw error;
+    }
+
+    if (!response.ok) {
+        const error = new Error(data?.detail || NO_CONNECTION_ERROR_TEXT);
+        error.code = 'STACK_BUILD_UNAVAILABLE';
+        throw error;
+    }
+
+    if (data?.stackBuildNumber !== null && !Number.isInteger(data?.stackBuildNumber)) {
+        const error = new Error('Invalid stack build response');
+        error.code = 'INVALID_STACK_BUILD_RESPONSE';
+        throw error;
+    }
+
+    return Number.isInteger(data?.stackBuildNumber) ? data.stackBuildNumber : null;
+};
+
+/**
+ * Get the current function registry capability graph and stack manifest.
+ * @returns {Promise<{capabilities: {functions: Array, dependencies: Array}, stackManifest: Object|null}>}
+ */
+export const getCapabilities = async () => {
+    try {
+        const response = await fetch(`${MW_BASE_URL}/capabilities`);
+
+        if (response.status === 401) {
+            clearStoredToken();
+            notifyAuthError("Uw sessie is verlopen. Meld u alstublieft opnieuw aan.");
+            throw new Error('Uw sessie is verlopen. Meld u alstublieft opnieuw aan.');
+        }
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data?.detail || NO_CONNECTION_ERROR_TEXT);
+        }
+
+        return {
+            capabilities: {
+                functions: Array.isArray(data?.capabilities?.functions) ? data.capabilities.functions : [],
+                dependencies: Array.isArray(data?.capabilities?.dependencies) ? data.capabilities.dependencies : [],
+            },
+            stackManifest: data?.stackManifest && typeof data.stackManifest === 'object'
+                ? data.stackManifest
+                : null,
+        };
+    } catch (error) {
+        console.error('Error getting capabilities:', error);
+        throw error;
+    }
+};
+
+/**
  * Build a browser-safe file URL for preview/download endpoints.
  * Browsers cannot attach Authorization headers to img/window.open, so token is passed as query parameter.
  * @param {string} path
@@ -577,25 +648,12 @@ export const getPossiblePartnersBasedOnAge = async (personDateOfBirth, options =
     }
 };
 
-/**
- * Get releases for a component
- * @param {string} component - fe, mw, or be
- * @returns {Promise<Array>} Array of releases
- */
-export const getReleases = async (component) => {
-    if (!component) return [];
-    try {
-        const url = `${MW_BASE_URL}/GetReleases?component=${component}`;
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Failed to load releases: ${response.status}`);
-        }
-        const data = await response.json();
-        return Array.isArray(data) ? data : [];
-    } catch (error) {
-        console.error('Error getting releases:', error);
-        throw error;
+export const getVersioningValidationProbe = async () => {
+    const response = await fetch(`${MW_BASE_URL}/versioning-validation-probe`);
+    if (!response.ok) {
+        throw new Error(`Versioning validation probe failed: ${response.status}`);
     }
+    return response.json();
 };
 
 /**
