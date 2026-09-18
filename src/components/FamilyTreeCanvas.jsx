@@ -13,6 +13,64 @@ const SHOW_NON_PARTNER_PARENTS_KEY = 'familiez_show_non_partner_parents';
 const ENABLE_ANCHOR_DRIVEN_LAYOUT = false;
 const ENABLE_BUS_LANE_SEPARATION = true;
 
+export const orderGenerationPersonIds = ({
+    personIds,
+    generation,
+    rootPersonId,
+    familyData,
+    parentsMap,
+    partnersMap,
+}) => {
+    const sortByBirthDate = (aId, bId) => {
+        const dateA = new Date(familyData.get(aId)?.PersonDateOfBirth || '9999-12-31');
+        const dateB = new Date(familyData.get(bId)?.PersonDateOfBirth || '9999-12-31');
+        return dateA - dateB;
+    };
+
+    if (generation !== 0) {
+        return [...personIds].sort(sortByBirthDate);
+    }
+
+    const personIdSet = new Set(personIds);
+    const isBloodlineMember = (personId) => {
+        if (personId === rootPersonId) {
+            return true;
+        }
+
+        const parents = parentsMap.get(personId);
+        return Boolean(parents?.fatherId || parents?.motherId);
+    };
+
+    const bloodlineIds = personIds
+        .filter(isBloodlineMember)
+        .sort(sortByBirthDate);
+    const orderedIds = [];
+    const usedIds = new Set();
+
+    bloodlineIds.forEach((personId) => {
+        if (usedIds.has(personId)) {
+            return;
+        }
+
+        orderedIds.push(personId);
+        usedIds.add(personId);
+
+        const partnerId = (partnersMap.get(personId) || [])
+            .find(candidateId => personIdSet.has(candidateId) && !usedIds.has(candidateId));
+        if (partnerId) {
+            orderedIds.push(partnerId);
+            usedIds.add(partnerId);
+        }
+    });
+
+    personIds
+        .filter(personId => !usedIds.has(personId))
+        .sort(sortByBirthDate)
+        .forEach(personId => orderedIds.push(personId));
+
+    return orderedIds;
+};
+
 /**
  * FamilyTreeCanvas Component
  * Main component for rendering the family tree with SVG
@@ -847,7 +905,16 @@ const FamilyTreeCanvas = ({
         const createBlocks = (personIds, gen, presorted = false) => {
             const blocks = [];
             const used = new Set();
-            const sortedIds = presorted ? [...personIds] : [...personIds].sort(sortByBirthDate);
+            const sortedIds = presorted
+                ? [...personIds]
+                : orderGenerationPersonIds({
+                    personIds,
+                    generation: gen,
+                    rootPersonId,
+                    familyData,
+                    parentsMap,
+                    partnersMap,
+                });
             const idSet = new Set(sortedIds);
 
             const isBloodlineMember = (personId) => {
