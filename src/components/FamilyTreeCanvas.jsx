@@ -982,12 +982,7 @@ const FamilyTreeCanvas = ({
             return blocks;
         };
 
-        const getChildAnchor = (childId, childGen) => {
-            const genPartnerMap = generationPartnerCenters.get(childGen) || new Map();
-            if (genPartnerMap.has(childId)) {
-                return genPartnerMap.get(childId);
-            }
-
+        const getChildAnchor = (childId) => {
             const childPos = positions.get(childId);
             return childPos ? childPos.x : null;
         };
@@ -1063,7 +1058,7 @@ const FamilyTreeCanvas = ({
                     block.members.forEach(parentId => {
                         const children = parentToChildren.get(parentId) || [];
                         children.forEach(childId => {
-                            const anchor = getChildAnchor(childId, gen - 1);
+                            const anchor = getChildAnchor(childId);
                             if (anchor !== null) {
                                 anchors.push(anchor);
                             }
@@ -1087,6 +1082,20 @@ const FamilyTreeCanvas = ({
                 leftEdge: null,
                 rightEdge: null
             }));
+
+            if (gen > 0) {
+                positionedBlocks.sort((first, second) => {
+                    if (first.rawAnchor === null || second.rawAnchor === null) {
+                        if (first.rawAnchor === second.rawAnchor) {
+                            return first.orderIndex - second.orderIndex;
+                        }
+                        return first.rawAnchor === null ? 1 : -1;
+                    }
+
+                    return (first.rawAnchor - second.rawAnchor)
+                        || (first.orderIndex - second.orderIndex);
+                });
+            }
 
             const isDescendantGeneration = gen < 0;
             const getLineageAnchor = (block) => {
