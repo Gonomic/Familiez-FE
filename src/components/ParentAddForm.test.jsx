@@ -123,8 +123,7 @@ describe('ParentAddForm', () => {
         familyDataService.getPossiblePartnersBasedOnAge.mockResolvedValue([
             {
                 PossiblePartnerID: 77,
-                PersonGivvenName: 'Jan',
-                PersonFamilyName: 'Pieters',
+                PossiblePartner: 'Jan Pieters',
                 PersonDateOfBirth: '1890-03-04',
             },
         ]);
@@ -139,7 +138,7 @@ describe('ParentAddForm', () => {
             });
         });
         await user.click(screen.getByRole('combobox', { name: 'Partner (optioneel)' }));
-        await user.click(await screen.findByRole('option', { name: 'Jan Pieters (1890-03-04)' }));
+        await user.click(await screen.findByRole('option', { name: 'Jan Pieters (04-03-1890)' }));
         fireEvent.change(screen.getByLabelText('Huwelijksdatum'), { target: { value: '1920-05-06' } });
         fireEvent.change(screen.getByRole('textbox', { name: 'Huwelijksplaats' }), {
             target: { value: 'Rotterdam' },

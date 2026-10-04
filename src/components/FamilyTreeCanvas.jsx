@@ -608,6 +608,19 @@ const FamilyTreeCanvas = ({
                 }
             }
 
+            const peopleMissingParents = Array.from(newFamilyData.keys())
+                .filter(personId => !newParentsMap.has(personId));
+            await Promise.all(peopleMissingParents.map(async (personId) => {
+                const [fatherId, motherId] = await Promise.all([
+                    getFather(personId),
+                    getMother(personId),
+                ]);
+                newParentsMap.set(personId, {
+                    fatherId: fatherId || null,
+                    motherId: motherId || null,
+                });
+            }));
+
             // Calculate positions and canvas size
             const canvasDimensions = calculatePositions(newFamilyData, newParentsMap, newPartnersMap, rootPersonId, newPositions);
 
@@ -2302,6 +2315,8 @@ const FamilyTreeCanvas = ({
             {contextMenu && selectedPerson && (
                 <PersonContextMenu
                     person={selectedPerson}
+                    hasFather={Boolean(parentsMap.get(selectedPerson.PersonID)?.fatherId)}
+                    hasMother={Boolean(parentsMap.get(selectedPerson.PersonID)?.motherId)}
                     anchorPosition={contextMenu}
                     onClose={handleCloseContextMenu}
                     onEditPerson={handleEditPerson}

@@ -12,9 +12,14 @@ import {
 const getPartnerId = (partner) => partner.PossiblePartnerID || partner.PersonID;
 
 const formatPartnerLabel = (partner) => {
-    const name = `${partner.PersonGivvenName || ''} ${partner.PersonFamilyName || ''}`.trim();
+    const name = partner.PossiblePartner
+        || `${partner.PersonGivvenName || ''} ${partner.PersonFamilyName || ''}`.trim();
     const dateOfBirth = String(partner.PersonDateOfBirth || '').slice(0, 10);
-    return dateOfBirth ? `${name} (${dateOfBirth})` : name;
+    const dateParts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOfBirth);
+    const formattedDate = dateParts
+        ? `${dateParts[3]}-${dateParts[2]}-${dateParts[1]}`
+        : dateOfBirth;
+    return formattedDate ? `${name} (${formattedDate})` : name;
 };
 
 const ParentAddForm = ({ childPerson, parentRole, onAdd, onCancel }) => {

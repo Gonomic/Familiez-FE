@@ -27,7 +27,40 @@ describe('PersonContextMenu WG-02 actions', () => {
         expect(screen.getByText('Zoon toevoegen')).toBeInTheDocument();
         expect(screen.getByText('Vader toevoegen')).toBeInTheDocument();
         expect(screen.getByText('Moeder toevoegen')).toBeInTheDocument();
+        expect(screen.getByRole('menuitem', { name: 'Vader toevoegen' })).toBeEnabled();
+        expect(screen.getByRole('menuitem', { name: 'Moeder toevoegen' })).toBeEnabled();
         expect(screen.queryByText('Kind toevoegen')).not.toBeInTheDocument();
+    });
+
+    it.each([
+        ['father', 'Vader toevoegen', 'Moeder toevoegen'],
+        ['mother', 'Moeder toevoegen', 'Vader toevoegen'],
+    ])('disables adding an existing %s while keeping the other parent option active', (parentRole, disabledLabel, enabledLabel) => {
+        const onAddPerson = vi.fn();
+        const menuProps = {
+            anchorPosition: { x: 120, y: 120 },
+            onClose: vi.fn(),
+            onEditPerson: vi.fn(),
+            onDeletePerson: vi.fn(),
+            onAddPerson,
+            onViewPerson: vi.fn(),
+            onManageFiles: vi.fn(),
+            person: { PersonID: 7 },
+            hasFather: parentRole === 'father',
+            hasMother: parentRole === 'mother',
+        };
+
+        render(<PersonContextMenu {...menuProps} />);
+
+        const disabledOption = screen.getByRole('menuitem', { name: disabledLabel });
+        const enabledOption = screen.getByRole('menuitem', { name: enabledLabel });
+        expect(disabledOption).toHaveAttribute('aria-disabled', 'true');
+        expect(enabledOption).toBeEnabled();
+
+        fireEvent.click(disabledOption);
+
+        expect(onAddPerson).not.toHaveBeenCalled();
+        expect(menuProps.onClose).not.toHaveBeenCalled();
     });
 
     it('routes the selected relation action on click', () => {

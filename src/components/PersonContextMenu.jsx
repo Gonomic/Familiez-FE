@@ -17,6 +17,8 @@ const PersonContextMenu = ({
     onViewPerson,
     onManageFiles,
     person,
+    hasFather = false,
+    hasMother = false,
 }) => {
     const userInfo = getUserInfo();
     const isAdmin = userInfo?.is_admin === true;
@@ -43,6 +45,12 @@ const PersonContextMenu = ({
     };
 
     const handleAddClick = (relationAction) => {
+        if (
+            (relationAction === 'father' && hasFather) ||
+            (relationAction === 'mother' && hasMother)
+        ) {
+            return;
+        }
         if (onAddPerson && person) {
             onAddPerson(person, relationAction);
         }
@@ -81,12 +89,12 @@ const PersonContextMenu = ({
                 </MenuItem>
             )}
             {isAdmin && (
-                <MenuItem onClick={() => handleAddClick('father')}>
+                <MenuItem disabled={hasFather} onClick={() => handleAddClick('father')}>
                     Vader toevoegen
                 </MenuItem>
             )}
             {isAdmin && (
-                <MenuItem onClick={() => handleAddClick('mother')}>
+                <MenuItem disabled={hasMother} onClick={() => handleAddClick('mother')}>
                     Moeder toevoegen
                 </MenuItem>
             )}
@@ -135,6 +143,8 @@ PersonContextMenu.propTypes = {
     onViewPerson: PropTypes.func,
     onManageFiles: PropTypes.func,
     person: PropTypes.object,
+    hasFather: PropTypes.bool,
+    hasMother: PropTypes.bool,
 };
 
 export default PersonContextMenu;
