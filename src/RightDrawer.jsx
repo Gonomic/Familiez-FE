@@ -8,13 +8,14 @@ import debounce from 'lodash/debounce';
 import PersonEditForm from './components/PersonEditForm';
 import PersonDeleteForm from './components/PersonDeleteForm';
 import PersonAddForm from './components/PersonAddForm';
+import ParentAddForm from './components/ParentAddForm';
 import PersonViewForm from './components/PersonViewForm';
 import PersonFilesForm from './components/PersonFilesForm';
 import { getPersonsLike, getMyPreferences, saveMyPreferences, getPersonDetails } from './services/familyDataService';
 import { getUserInfo } from './services/authService';
 import { NO_CONNECTION_ERROR_TEXT } from './constants/errorMessages';
 
-function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUpdated, personToDelete, personToAdd, personToView, personForFiles, onPersonAdded, onPersonDeleted, onAddPersonClick }) {
+function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUpdated, personToDelete, personToAdd, personToView, personForFiles, onPersonAdded, onParentAdded, onPersonDeleted, onAddPersonClick }) {
     const navigate = useNavigate();
     const [person, setPerson] = useState(null);
     const [persons, setPersons] = useState([]);
@@ -235,6 +236,12 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
         onClose();
     };
 
+    const handleParentAdded = (newParent) => {
+        if (onParentAdded) {
+            onParentAdded(newParent);
+        }
+    };
+
     // Handle canceling add
     const handleCancelAdd = () => {
         setMode('select');
@@ -363,13 +370,22 @@ function RightDrawer({ open, onClose, onPersonSelected, personToEdit, onPersonUp
                         </>
                     ) : mode === 'add' ? (
                         <>
-                            <PersonAddForm
-                                parentPerson={personToAdd?.contextPerson || null}
-                                relationAction={personToAdd?.relationAction || 'standalone'}
-                                sourcePerson={personToAdd?.contextPerson || null}
-                                onAdd={handlePersonAdded}
-                                onCancel={handleCancelAdd}
-                            />
+                            {['father', 'mother'].includes(personToAdd?.relationAction) ? (
+                                <ParentAddForm
+                                    childPerson={personToAdd?.contextPerson || null}
+                                    parentRole={personToAdd.relationAction}
+                                    onAdd={handleParentAdded}
+                                    onCancel={handleCancelAdd}
+                                />
+                            ) : (
+                                <PersonAddForm
+                                    parentPerson={personToAdd?.contextPerson || null}
+                                    relationAction={personToAdd?.relationAction || 'standalone'}
+                                    sourcePerson={personToAdd?.contextPerson || null}
+                                    onAdd={handlePersonAdded}
+                                    onCancel={handleCancelAdd}
+                                />
+                            )}
                         </>
                     ) : mode === 'view' ? (
                         <>
@@ -411,6 +427,7 @@ RightDrawer.propTypes = {
     personToView: PropTypes.object,
     personForFiles: PropTypes.object,
     onPersonAdded: PropTypes.func,
+    onParentAdded: PropTypes.func,
     onPersonDeleted: PropTypes.func,
     onAddPersonClick: PropTypes.func,
 };

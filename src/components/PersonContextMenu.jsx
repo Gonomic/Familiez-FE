@@ -81,6 +81,16 @@ const PersonContextMenu = ({
                 </MenuItem>
             )}
             {isAdmin && (
+                <MenuItem onClick={() => handleAddClick('father')}>
+                    Vader toevoegen
+                </MenuItem>
+            )}
+            {isAdmin && (
+                <MenuItem onClick={() => handleAddClick('mother')}>
+                    Moeder toevoegen
+                </MenuItem>
+            )}
+            {isAdmin && (
                 <MenuItem onClick={() => handleAddClick('brother')}>
                     Broer toevoegen
                 </MenuItem>

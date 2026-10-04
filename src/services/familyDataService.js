@@ -993,6 +993,44 @@ export const addPerson = async (personData) => {
 };
 
 /**
+ * Add a new parent to an existing child through the middleware stored-procedure route.
+ * @param {Object} parentData - Parent details plus child and optional partner information
+ * @returns {Promise<{success: boolean, personId?: number, warning?: string|null, error?: string}>}
+ */
+export const addNewParentToChild = async (parentData) => {
+    try {
+        const response = await fetch(`${MW_BASE_URL}/AddNewParentToChild`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(parentData),
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+            return {
+                success: false,
+                error: data?.detail || 'Vader/moeder toevoegen is mislukt.',
+            };
+        }
+
+        return {
+            success: Boolean(data?.success),
+            personId: data?.personId,
+            warning: data?.warning || null,
+            error: data?.error || null,
+        };
+    } catch (error) {
+        console.error('Error adding parent to child:', error);
+        return {
+            success: false,
+            error: NO_CONNECTION_ERROR_TEXT,
+        };
+    }
+};
+
+/**
  * Upload a file linked to a person or family scope.
  * @param {Object} payload - Upload payload
  * @param {File} payload.file - File to upload

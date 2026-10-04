@@ -270,6 +270,10 @@ const AppContent = () => {
     setRightDrawerOpen(false);
   };
 
+  const handleParentAdded = () => {
+    setTreeRefreshTrigger(prev => prev + 1);
+  };
+
   const handlePersonDeleted = () => {
     // Trigger tree refresh after deletion
     setTreeRefreshTrigger(prev => prev + 1);
@@ -303,6 +307,7 @@ const AppContent = () => {
                 personForFiles={personForFiles}
                 onPersonUpdated={handlePersonUpdated}
                 onPersonAdded={handlePersonAdded}
+                onParentAdded={handleParentAdded}
                 onPersonDeleted={handlePersonDeleted}
                 onAddPersonClick={handleAddPerson}
               />

@@ -25,6 +25,8 @@ describe('PersonContextMenu WG-02 actions', () => {
         expect(screen.getByText('Zus toevoegen')).toBeInTheDocument();
         expect(screen.getByText('Dochter toevoegen')).toBeInTheDocument();
         expect(screen.getByText('Zoon toevoegen')).toBeInTheDocument();
+        expect(screen.getByText('Vader toevoegen')).toBeInTheDocument();
+        expect(screen.getByText('Moeder toevoegen')).toBeInTheDocument();
         expect(screen.queryByText('Kind toevoegen')).not.toBeInTheDocument();
     });
 
@@ -50,5 +52,30 @@ describe('PersonContextMenu WG-02 actions', () => {
 
         expect(onAddPerson).toHaveBeenCalledWith(person, 'daughter');
         expect(onClose).toHaveBeenCalled();
+    });
+
+    it.each([
+        ['Vader toevoegen', 'father'],
+        ['Moeder toevoegen', 'mother'],
+    ])('routes %s to the parent form', (label, relationAction) => {
+        const onAddPerson = vi.fn();
+        const person = { PersonID: 12 };
+
+        render(
+            <PersonContextMenu
+                anchorPosition={{ x: 120, y: 120 }}
+                onClose={() => {}}
+                onEditPerson={() => {}}
+                onDeletePerson={() => {}}
+                onAddPerson={onAddPerson}
+                onViewPerson={() => {}}
+                onManageFiles={() => {}}
+                person={person}
+            />
+        );
+
+        fireEvent.click(screen.getByText(label));
+
+        expect(onAddPerson).toHaveBeenCalledWith(person, relationAction);
     });
 });
