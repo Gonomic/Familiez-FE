@@ -1,6 +1,6 @@
 {
   "component": "FE",
-  "dockerImageTag": "familiez-fe:6.0.0",
+  "dockerImageTag": "familiez-fe:6.0.1",
   "functions": [
     {
       "file": "authService.js",
@@ -503,7 +503,7 @@
       "type": "async-arrow"
     }
   ],
-  "generatedAt": "2026-10-10T09:14:56Z",
-  "sourceCommit": "544ea29f2cf53a6249f6475775dc508bd0111df0",
-  "version": "6.0.0"
+  "generatedAt": "2026-10-11T17:10:34Z",
+  "sourceCommit": "3865f365bc4e52b82de0693e29d429fdb094ca8d",
+  "version": "6.0.1"
 }
