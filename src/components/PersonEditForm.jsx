@@ -406,6 +406,18 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
             field === 'PersonPlaceOfBirth' || field === 'PersonPlaceOfDeath' || field === 'MarriagePlace') {
             value = normalizeInput(value);
         }
+
+        if (field === 'PersonDateOfBirth' || field === 'PersonDateOfDeath') {
+            const birthDate = field === 'PersonDateOfBirth' ? value : formData.PersonDateOfBirth;
+            const deathDate = field === 'PersonDateOfDeath' ? value : formData.PersonDateOfDeath;
+            const dateError = 'Overlijdensdatum kan niet voor de geboortedatum liggen.';
+
+            if (deathDate && birthDate && deathDate < birthDate) {
+                setError(dateError);
+            } else {
+                setError((previousError) => previousError === dateError ? '' : previousError);
+            }
+        }
         
         setFormData(prev => ({
             ...prev,
@@ -470,6 +482,11 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
 
         if (!formData.PersonPlaceOfBirth) {
             setError('Geboorteplaats is verplicht.');
+            return;
+        }
+
+        if (formData.PersonDateOfDeath && formData.PersonDateOfDeath < formData.PersonDateOfBirth) {
+            setError('Overlijdensdatum kan niet voor de geboortedatum liggen.');
             return;
         }
 
@@ -811,7 +828,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 onChange={handleChange('PersonDateOfDeath')}
                 fullWidth
                 InputLabelProps={{ shrink: true }}
-                inputProps={{ max: new Date().toISOString().split('T')[0] }}
+                inputProps={{ min: formData.PersonDateOfBirth || undefined, max: new Date().toISOString().split('T')[0] }}
             />
 
             <TextField

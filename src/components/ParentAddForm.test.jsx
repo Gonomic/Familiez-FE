@@ -44,6 +44,18 @@ describe('ParentAddForm', () => {
         });
     });
 
+    it('sets the death date minimum to the selected birth date', () => {
+        const { container } = render(
+            <ParentAddForm childPerson={childPerson} parentRole="father" onAdd={() => {}} onCancel={() => {}} />
+        );
+        const dateInputs = container.querySelectorAll('input[type="date"]');
+
+        expect(dateInputs[1]).not.toHaveAttribute('min');
+        fireEvent.change(dateInputs[0], { target: { value: '1900-01-02' } });
+
+        expect(dateInputs[1]).toHaveAttribute('min', '1900-01-02');
+    });
+
     it('sends the parent data and leaves a successful partner warning visible', async () => {
         const user = userEvent.setup();
         const onAdd = vi.fn();

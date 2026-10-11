@@ -34,6 +34,42 @@ describe('PersonAddForm sibling guard', () => {
         familyDataService.addPerson.mockResolvedValue({ success: true, person: { PersonID: 123 } });
     });
 
+    it('sets the death date minimum to the selected birth date', () => {
+        const { container } = render(
+            <PersonAddForm onAdd={() => {}} onCancel={() => {}} />
+        );
+        const dateInputs = container.querySelectorAll('input[type="date"]');
+
+        expect(dateInputs[1]).not.toHaveAttribute('min');
+        fireEvent.change(dateInputs[0], { target: { value: '2000-01-02' } });
+
+        expect(dateInputs[1]).toHaveAttribute('min', '2000-01-02');
+    });
+
+    it('blocks adding a person when the death date is before the birth date', async () => {
+        const user = userEvent.setup();
+        const { container } = render(
+            <PersonAddForm
+                onAdd={() => {}}
+                onCancel={() => {}}
+            />
+        );
+
+        await user.type(screen.getByRole('textbox', { name: /Voornaam/i }), 'Jan');
+        await user.type(screen.getByRole('textbox', { name: /Achternaam/i }), 'Jansen');
+        const dateInputs = container.querySelectorAll('input[type="date"]');
+        fireEvent.change(dateInputs[0], { target: { value: '2000-01-02' } });
+        await user.type(screen.getByRole('textbox', { name: /Geboorteplaats/i }), 'Leiden');
+        fireEvent.change(dateInputs[1], { target: { value: '2000-01-01' } });
+
+        await user.click(screen.getByRole('button', { name: 'Bewaren' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+            'Overlijdensdatum kan niet voor de geboortedatum liggen.'
+        );
+        expect(familyDataService.addPerson).not.toHaveBeenCalled();
+    });
+
     it.each([
         ['brother', 'Man'],
         ['sister', 'Vrouw'],

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PersonEditForm from './PersonEditForm';
 import * as familyDataService from '../services/familyDataService';
@@ -58,6 +58,44 @@ describe('PersonEditForm marriage start date fallback', () => {
         });
         familyDataService.createMarriage.mockResolvedValue({ success: true, marriageId: 1, status: 200 });
         familyDataService.endMarriage.mockResolvedValue({ success: true, marriageId: 1, status: 200 });
+    });
+
+    it('sets the death date minimum to the birth date and tracks birth date changes', async () => {
+        const { container } = render(
+            <PersonEditForm person={person} onSave={() => {}} onCancel={() => {}} />
+        );
+
+        await screen.findByLabelText('Startdatum huwelijk');
+        const dateInputs = container.querySelectorAll('input[type="date"]');
+        expect(dateInputs[1]).toHaveAttribute('min', '1930-01-01');
+
+        fireEvent.change(dateInputs[0], { target: { value: '1931-01-01' } });
+
+        expect(dateInputs[1]).toHaveAttribute('min', '1931-01-01');
+    });
+
+    it('blocks saving when the death date is before the birth date', async () => {
+        const user = userEvent.setup();
+        const { container } = render(
+            <PersonEditForm
+                person={person}
+                onSave={() => {}}
+                onCancel={() => {}}
+            />
+        );
+
+        await screen.findByLabelText('Startdatum huwelijk');
+        const dateInputs = container.querySelectorAll('input[type="date"]');
+        await user.clear(dateInputs[1]);
+        await user.type(dateInputs[1], '1929-12-31');
+        await user.click(screen.getByRole('button', { name: 'Opslaan' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+            'Overlijdensdatum kan niet voor de geboortedatum liggen.'
+        );
+        expect(familyDataService.updatePerson).not.toHaveBeenCalled();
+        expect(familyDataService.updateMarriageStartDate).not.toHaveBeenCalled();
+        expect(familyDataService.createMarriage).not.toHaveBeenCalled();
     });
 
     it('updates marriage start date using active marriage partner when form partner is empty', async () => {

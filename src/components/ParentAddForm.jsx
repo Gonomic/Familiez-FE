@@ -253,7 +253,7 @@ const ParentAddForm = ({ childPerson, parentRole, onAdd, onCancel }) => {
                 type="date"
                 value={formData.deathDate}
                 onChange={handleChange('deathDate')}
-                inputProps={{ max: today }}
+                inputProps={{ min: formData.birthDate || undefined, max: today }}
                 InputLabelProps={{ shrink: true }}
                 fullWidth
                 disabled={isDisabled}
