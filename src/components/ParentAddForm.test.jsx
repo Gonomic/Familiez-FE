@@ -78,11 +78,14 @@ describe('ParentAddForm', () => {
                 givenName: 'Anna',
                 familyName: 'Jansen',
                 birthDate: '1900-01-02',
+                birthDateStatus: 1,
                 birthPlace: 'Leiden',
                 deathDate: null,
+                deathDateStatus: null,
                 deathPlace: null,
                 partnerId: null,
                 marriageDate: null,
+                marriageDateStatus: null,
                 marriagePlace: null,
             });
         });
@@ -152,6 +155,8 @@ describe('ParentAddForm', () => {
         await user.click(screen.getByRole('combobox', { name: 'Partner (optioneel)' }));
         await user.click(await screen.findByRole('option', { name: 'Jan Pieters (04-03-1890)' }));
         fireEvent.change(screen.getByLabelText('Huwelijksdatum'), { target: { value: '1920-05-06' } });
+        const exactnessCheckboxes = screen.getAllByRole('checkbox');
+        await user.click(exactnessCheckboxes[2]);
         fireEvent.change(screen.getByRole('textbox', { name: 'Huwelijksplaats' }), {
             target: { value: 'Rotterdam' },
         });
@@ -164,6 +169,7 @@ describe('ParentAddForm', () => {
                     gender: 0,
                     partnerId: 77,
                     marriageDate: '1920-05-06',
+                    marriageDateStatus: 2,
                     marriagePlace: 'Rotterdam',
                 })
             );

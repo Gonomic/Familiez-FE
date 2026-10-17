@@ -13,7 +13,9 @@ import {
     TextField,
     Paper,
     Alert,
+    Checkbox,
     CircularProgress,
+    FormControlLabel,
     Typography,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
@@ -207,6 +209,7 @@ const BatchAddMarriages = () => {
                         ...pair,
                         pairKey,
                         startDate: isoStartDate,
+                        startDateStatus: data.startDateStatus || 1,
                         marriagePlace: data.marriagePlace || null,
                     });
                 }
@@ -228,6 +231,7 @@ const BatchAddMarriages = () => {
                     personAId: pair.PersonAId,
                     personBId: pair.PersonBId,
                     startDate: pair.startDate,
+                    startDateStatus: pair.startDateStatus,
                     marriagePlace: pair.marriagePlace,
                 });
 
@@ -410,17 +414,36 @@ const BatchAddMarriages = () => {
                                                 <TableCell>{formatPersonLabel(pair.PersonAName, pair.PersonADateOfBirth)}</TableCell>
                                                 <TableCell>{formatPersonLabel(pair.PersonBName, pair.PersonBDateOfBirth)}</TableCell>
                                                 <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        type="text"
-                                                        value={editedData[pairKey]?.startDate || ''}
-                                                        onChange={(e) =>
-                                                            updatePairData(pair.PersonAId, pair.PersonBId, 'startDate', e.target.value)
-                                                        }
-                                                        disabled={isSaving}
-                                                        placeholder="dd-mm-jjjj"
-                                                        inputProps={{ required: false, pattern: '\\d{2}-\\d{2}-\\d{4}' }}
-                                                    />
+                                                    <Box sx={{ minWidth: 150 }}>
+                                                        <TextField
+                                                            size="small"
+                                                            type="text"
+                                                            value={editedData[pairKey]?.startDate || ''}
+                                                            onChange={(e) =>
+                                                                updatePairData(pair.PersonAId, pair.PersonBId, 'startDate', e.target.value)
+                                                            }
+                                                            disabled={isSaving}
+                                                            placeholder="dd-mm-jjjj"
+                                                            inputProps={{ required: false, pattern: '\\d{2}-\\d{2}-\\d{4}' }}
+                                                        />
+                                                        <FormControlLabel
+                                                            control={(
+                                                                <Checkbox
+                                                                    size="small"
+                                                                    checked={(editedData[pairKey]?.startDateStatus ?? 1) !== 2}
+                                                                    onChange={(event) => updatePairData(
+                                                                        pair.PersonAId,
+                                                                        pair.PersonBId,
+                                                                        'startDateStatus',
+                                                                        event.target.checked ? 1 : 2,
+                                                                    )}
+                                                                    disabled={!editedData[pairKey]?.startDate || isSaving}
+                                                                />
+                                                            )}
+                                                            label="Datum is exact"
+                                                            sx={{ ml: 0, '& .MuiFormControlLabel-label': { fontSize: '0.75rem' } }}
+                                                        />
+                                                    </Box>
                                                 </TableCell>
                                                 <TableCell>
                                                     <TextField

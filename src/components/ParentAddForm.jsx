@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Box, Button, MenuItem, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Checkbox, FormControlLabel, MenuItem, TextField, Typography } from '@mui/material';
 import PropTypes from 'prop-types';
 import {
     addNewParentToChild,
@@ -29,11 +29,14 @@ const ParentAddForm = ({ childPerson, parentRole, onAdd, onCancel }) => {
         givenName: '',
         familyName: '',
         birthDate: '',
+        birthDateStatus: 1,
         birthPlace: '',
         deathDate: '',
+        deathDateStatus: null,
         deathPlace: '',
         partnerId: '',
         marriageDate: '',
+        marriageDateStatus: 1,
         marriagePlace: '',
     });
     const [possiblePartners, setPossiblePartners] = useState([]);
@@ -119,7 +122,18 @@ const ParentAddForm = ({ childPerson, parentRole, onAdd, onCancel }) => {
         setFormData((previous) => ({
             ...previous,
             [field]: value,
-            ...(field === 'partnerId' && !value ? { marriageDate: '', marriagePlace: '' } : {}),
+            ...(field === 'birthDate'
+                ? { birthDateStatus: value ? (previous.birthDateStatus || 1) : null }
+                : {}),
+            ...(field === 'deathDate'
+                ? { deathDateStatus: value ? (previous.deathDateStatus || 1) : null }
+                : {}),
+            ...(field === 'marriageDate'
+                ? { marriageDateStatus: value ? (previous.marriageDateStatus || 1) : null }
+                : {}),
+            ...(field === 'partnerId' && !value
+                ? { marriageDate: '', marriageDateStatus: null, marriagePlace: '' }
+                : {}),
         }));
         setError('');
     };
@@ -151,11 +165,16 @@ const ParentAddForm = ({ childPerson, parentRole, onAdd, onCancel }) => {
                 givenName: formData.givenName.trim(),
                 familyName: formData.familyName.trim(),
                 birthDate: formData.birthDate,
+                birthDateStatus: formData.birthDateStatus,
                 birthPlace: formData.birthPlace.trim(),
                 deathDate: formData.deathDate || null,
+                deathDateStatus: formData.deathDate ? formData.deathDateStatus : null,
                 deathPlace: formData.deathPlace.trim() || null,
                 partnerId: formData.partnerId ? Number(formData.partnerId) : null,
                 marriageDate: formData.partnerId ? formData.marriageDate || null : null,
+                marriageDateStatus: formData.partnerId && formData.marriageDate
+                    ? formData.marriageDateStatus
+                    : null,
                 marriagePlace: formData.partnerId ? formData.marriagePlace.trim() || null : null,
             });
 
@@ -239,6 +258,19 @@ const ParentAddForm = ({ childPerson, parentRole, onAdd, onCancel }) => {
                 fullWidth
                 disabled={isDisabled}
             />
+            <FormControlLabel
+                control={(
+                    <Checkbox
+                        checked={formData.birthDateStatus !== 2}
+                        onChange={(event) => setFormData((previous) => ({
+                            ...previous,
+                            birthDateStatus: event.target.checked ? 1 : 2,
+                        }))}
+                        disabled={!formData.birthDate || isDisabled}
+                    />
+                )}
+                label="Datum is exact"
+            />
             <TextField
                 label="Geboorteplaats"
                 value={formData.birthPlace}
@@ -257,6 +289,19 @@ const ParentAddForm = ({ childPerson, parentRole, onAdd, onCancel }) => {
                 InputLabelProps={{ shrink: true }}
                 fullWidth
                 disabled={isDisabled}
+            />
+            <FormControlLabel
+                control={(
+                    <Checkbox
+                        checked={!formData.deathDate || formData.deathDateStatus !== 2}
+                        onChange={(event) => setFormData((previous) => ({
+                            ...previous,
+                            deathDateStatus: event.target.checked ? 1 : 2,
+                        }))}
+                        disabled={!formData.deathDate || isDisabled}
+                    />
+                )}
+                label="Datum is exact"
             />
             <TextField
                 label="Plaats van overlijden"
@@ -292,6 +337,19 @@ const ParentAddForm = ({ childPerson, parentRole, onAdd, onCancel }) => {
                         InputLabelProps={{ shrink: true }}
                         fullWidth
                         disabled={isDisabled}
+                    />
+                    <FormControlLabel
+                        control={(
+                            <Checkbox
+                                checked={!formData.marriageDate || formData.marriageDateStatus !== 2}
+                                onChange={(event) => setFormData((previous) => ({
+                                    ...previous,
+                                    marriageDateStatus: event.target.checked ? 1 : 2,
+                                }))}
+                                disabled={!formData.marriageDate || isDisabled}
+                            />
+                        )}
+                        label="Datum is exact"
                     />
                     <TextField
                         label="Huwelijksplaats"

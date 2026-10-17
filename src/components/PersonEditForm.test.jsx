@@ -137,6 +137,7 @@ describe('PersonEditForm marriage start date fallback', () => {
                 personAId: 89,
                 personBId: 207,
                 startDate: '2014-05-23',
+                startDateStatus: 1,
                 marriagePlace: null,
             });
         });
@@ -166,6 +167,7 @@ describe('PersonEditForm marriage start date fallback', () => {
                 personAId: 89,
                 personBId: 207,
                 startDate: '1961-05-23',
+                startDateStatus: 1,
                 marriagePlace: null,
             });
         });
@@ -201,11 +203,69 @@ describe('PersonEditForm marriage start date fallback', () => {
                 personAId: 89,
                 personBId: 207,
                 startDate: '2014-05-23',
+                startDateStatus: 1,
                 marriagePlace: null,
             });
         });
 
         expect(familyDataService.updatePerson).not.toHaveBeenCalled();
         expect(screen.queryByText('Trouwdatum opgeslagen, maar persoonsgegevens opslaan mislukt: Wijziging mislukt - controleer database logs')).not.toBeInTheDocument();
+    });
+
+    it('saves an approximate marriage start date with estimated status', async () => {
+        const user = userEvent.setup();
+
+        render(
+            <PersonEditForm
+                person={person}
+                onSave={() => {}}
+                onCancel={() => {}}
+            />
+        );
+
+        await screen.findByLabelText('Startdatum huwelijk');
+        const exactnessCheckboxes = await screen.findAllByRole('checkbox');
+        await user.click(exactnessCheckboxes[2]);
+        await user.click(screen.getByRole('button', { name: 'Opslaan' }));
+
+        await waitFor(() => {
+            expect(familyDataService.updateMarriageStartDate).toHaveBeenCalledWith(1, {
+                personAId: 89,
+                personBId: 207,
+                startDate: '1961-05-23',
+                startDateStatus: 2,
+                marriagePlace: null,
+            });
+        });
+    });
+
+    it('saves an approximate marriage end date with estimated status', async () => {
+        const user = userEvent.setup();
+
+        render(
+            <PersonEditForm
+                person={person}
+                onSave={() => {}}
+                onCancel={() => {}}
+            />
+        );
+
+        await screen.findByLabelText('Startdatum huwelijk');
+        await user.click(screen.getByRole('button', { name: 'Huwelijk beëindigen' }));
+        await screen.findByLabelText('Einddatum');
+
+        const exactnessCheckboxes = screen.getAllByRole('checkbox');
+        await user.click(exactnessCheckboxes[exactnessCheckboxes.length - 1]);
+        await user.click(screen.getByRole('button', { name: 'Beëindigen' }));
+
+        await waitFor(() => {
+            expect(familyDataService.endMarriage).toHaveBeenCalledWith(1, {
+                personAId: 89,
+                personBId: 207,
+                endDate: new Date().toISOString().split('T')[0],
+                endDateStatus: 2,
+                endReason: 'scheiding',
+            });
+        });
     });
 });

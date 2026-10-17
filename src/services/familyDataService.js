@@ -734,14 +734,14 @@ export const getActiveMarriageForPair = async (personAId, personBId) => {
  * @param {string|null} payload.marriagePlace - Place of marriage
  * @returns {Promise<Object>} Result object with success and optional error
  */
-export const createMarriage = async ({ personAId, personBId, startDate, marriagePlace = null }) => {
+export const createMarriage = async ({ personAId, personBId, startDate, startDateStatus = 1, marriagePlace = null }) => {
     try {
         const response = await fetch(`${MW_BASE_URL}/marriages`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ personAId, personBId, startDate, marriagePlace }),
+            body: JSON.stringify({ personAId, personBId, startDate, startDateStatus, marriagePlace }),
         });
 
         const data = await response.json();
@@ -778,14 +778,14 @@ export const createMarriage = async ({ personAId, personBId, startDate, marriage
  * @param {string} payload.endReason - End reason enum
  * @returns {Promise<Object>} Result object with success and optional error
  */
-export const endMarriage = async (marriageId, { personAId, personBId, endDate, endReason }) => {
+export const endMarriage = async (marriageId, { personAId, personBId, endDate, endDateStatus = 1, endReason }) => {
     try {
         const response = await fetch(`${MW_BASE_URL}/marriages/${marriageId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ personAId, personBId, endDate, endReason }),
+            body: JSON.stringify({ personAId, personBId, endDate, endDateStatus, endReason }),
         });
 
         const data = await response.json();
@@ -822,14 +822,14 @@ export const endMarriage = async (marriageId, { personAId, personBId, endDate, e
  * @param {string|null} payload.marriagePlace - Place of marriage
  * @returns {Promise<Object>} Result object with success and optional error
  */
-export const updateMarriageStartDate = async (marriageId, { personAId, personBId, startDate, marriagePlace = null }) => {
+export const updateMarriageStartDate = async (marriageId, { personAId, personBId, startDate, startDateStatus = 1, marriagePlace = null }) => {
     try {
         const response = await fetch(`${MW_BASE_URL}/marriages/${marriageId}/start-date`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ personAId, personBId, startDate, marriagePlace }),
+            body: JSON.stringify({ personAId, personBId, startDate, startDateStatus, marriagePlace }),
         });
 
         const data = await response.json();

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Alert, Box, TextField, Button, Typography, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Alert, Box, TextField, Button, Typography, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions, Checkbox } from '@mui/material';
 import { NO_CONNECTION_ERROR_TEXT } from '../constants/errorMessages';
 import PropTypes from 'prop-types';
 import { updatePerson, createMarriage, endMarriage, updateMarriageStartDate, getActiveMarriageForPerson, getPossibleMothersBasedOnAge, getPossibleFathersBasedOnAge, getPossiblePartnersBasedOnAge, getFather, getMother, getPartners, getChildren, getPersonDetails } from '../services/familyDataService';
@@ -25,6 +25,8 @@ const normalizeInput = (text) => {
         .replace(/ç/g, 'c')
         .replace(/[ś]/g, 's');
 };
+
+    const normalizeDateStatus = (status) => Number(status) === 2 ? 2 : 1;
 
 /**
  * Validate if text contains invalid characters for Latin1 charset
@@ -96,7 +98,9 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
         PersonGivvenName: '',
         PersonFamilyName: '',
         PersonDateOfBirth: '',
+        PersonDateOfBirthStatus: 1,
         PersonDateOfDeath: '',
+        PersonDateOfDeathStatus: null,
         PersonPlaceOfBirth: '',
         PersonPlaceOfDeath: '',
         FatherId: null,
@@ -104,6 +108,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
         PartnerId: null,
         PersonIsMale: '',
         MarriageStartDate: '',
+        MarriageStartDateStatus: 1,
         MarriagePlace: '',
     });
     const [isSaving, setIsSaving] = useState(false);
@@ -122,6 +127,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
     const [existingActiveMarriage, setExistingActiveMarriage] = useState(null);
     const [endMarriageDialogOpen, setEndMarriageDialogOpen] = useState(false);
     const [endMarriageDate, setEndMarriageDate] = useState('');
+    const [endMarriageDateStatus, setEndMarriageDateStatus] = useState(1);
     const [endMarriageReason, setEndMarriageReason] = useState('scheiding');
     const [endMarriageError, setEndMarriageError] = useState('');
     const [isEndingMarriage, setIsEndingMarriage] = useState(false);
@@ -153,7 +159,11 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 PersonGivvenName: person.PersonGivvenName || '',
                 PersonFamilyName: person.PersonFamilyName || '',
                 PersonDateOfBirth: person.PersonDateOfBirth || '',
+                PersonDateOfBirthStatus: normalizeDateStatus(person.PersonDateOfBirthStatus),
                 PersonDateOfDeath: person.PersonDateOfDeath || '',
+                PersonDateOfDeathStatus: person.PersonDateOfDeath
+                    ? normalizeDateStatus(person.PersonDateOfDeathStatus)
+                    : null,
                 PersonPlaceOfBirth: person.PersonPlaceOfBirth || '',
                 PersonPlaceOfDeath: person.PersonPlaceOfDeath || '',
                 FatherId: null,
@@ -161,6 +171,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 PartnerId: null,
                 PersonIsMale: person.PersonIsMale === null || person.PersonIsMale === undefined ? '' : String(person.PersonIsMale),
                 MarriageStartDate: '',
+                MarriageStartDateStatus: 1,
                 MarriagePlace: '',
             });
 
@@ -185,6 +196,9 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                         MotherId: motherId || null,
                         PartnerId: partners && partners.length > 0 ? partners[0].PersonID : null,
                         MarriageStartDate: activeMarriage?.StartDate ? String(activeMarriage.StartDate).slice(0, 10) : '',
+                        MarriageStartDateStatus: activeMarriage?.StartDate
+                            ? normalizeDateStatus(activeMarriage.StartDateStatus)
+                            : 1,
                         MarriagePlace: activeMarriage?.MarriagePlace || '',
                     }));
 
@@ -200,8 +214,12 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                         PersonGivvenName: person.PersonGivvenName || '',
                         PersonFamilyName: person.PersonFamilyName || '',
                         PersonDateOfBirth: person.PersonDateOfBirth || '',
+                        PersonDateOfBirthStatus: normalizeDateStatus(person.PersonDateOfBirthStatus),
                         PersonPlaceOfBirth: person.PersonPlaceOfBirth || '',
                         PersonDateOfDeath: person.PersonDateOfDeath || null,
+                        PersonDateOfDeathStatus: person.PersonDateOfDeath
+                            ? normalizeDateStatus(person.PersonDateOfDeathStatus)
+                            : null,
                         PersonPlaceOfDeath: person.PersonPlaceOfDeath || null,
                         PersonIsMale: initialPersonIsMaleValue,
                         FatherId: fatherId || null,
@@ -421,7 +439,16 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
         
         setFormData(prev => ({
             ...prev,
-            [field]: value
+            [field]: value,
+            ...(field === 'PersonDateOfBirth'
+                ? { PersonDateOfBirthStatus: value ? (prev.PersonDateOfBirthStatus || 1) : null }
+                : {}),
+            ...(field === 'PersonDateOfDeath'
+                ? { PersonDateOfDeathStatus: value ? (prev.PersonDateOfDeathStatus || 1) : null }
+                : {}),
+            ...(field === 'MarriageStartDate'
+                ? { MarriageStartDateStatus: value ? (prev.MarriageStartDateStatus || 1) : null }
+                : {}),
         }));
     };
 
@@ -520,8 +547,14 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 PersonGivvenName: formData.PersonGivvenName,
                 PersonFamilyName: formData.PersonFamilyName,
                 PersonDateOfBirth: formData.PersonDateOfBirth,
+                PersonDateOfBirthStatus: formData.PersonDateOfBirth
+                    ? formData.PersonDateOfBirthStatus
+                    : null,
                 PersonPlaceOfBirth: formData.PersonPlaceOfBirth,
                 PersonDateOfDeath: formData.PersonDateOfDeath || null,
+                PersonDateOfDeathStatus: formData.PersonDateOfDeath
+                    ? formData.PersonDateOfDeathStatus
+                    : null,
                 PersonPlaceOfDeath: formData.PersonPlaceOfDeath || null,
                 PersonIsMale: personIsMaleValue,
                 FatherId: formData.FatherId || null,
@@ -539,6 +572,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                     personAId: person.PersonID,
                     personBId: effectiveMarriagePartnerId,
                     startDate: normalizedSubmittedStartDate,
+                    startDateStatus: formData.MarriageStartDateStatus || 1,
                     marriagePlace: formData.MarriagePlace || null,
                 });
 
@@ -557,6 +591,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                         personAId: person.PersonID,
                         personBId: Number(formData.PartnerId),
                         startDate: formData.MarriageStartDate,
+                        startDateStatus: formData.MarriageStartDateStatus || 1,
                         marriagePlace: formData.MarriagePlace || null,
                     });
 
@@ -594,8 +629,12 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
         PersonGivvenName: sourcePerson?.PersonGivvenName || '',
         PersonFamilyName: sourcePerson?.PersonFamilyName || '',
         PersonDateOfBirth: sourcePerson?.PersonDateOfBirth || null,
+        PersonDateOfBirthStatus: sourcePerson?.PersonDateOfBirthStatus || 1,
         PersonPlaceOfBirth: sourcePerson?.PersonPlaceOfBirth || null,
         PersonDateOfDeath: sourcePerson?.PersonDateOfDeath || null,
+        PersonDateOfDeathStatus: sourcePerson?.PersonDateOfDeath
+            ? normalizeDateStatus(sourcePerson.PersonDateOfDeathStatus)
+            : null,
         PersonPlaceOfDeath: sourcePerson?.PersonPlaceOfDeath || null,
         PersonIsMale: sourcePerson?.PersonIsMale === null || sourcePerson?.PersonIsMale === undefined
             ? null
@@ -609,6 +648,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
         setEndMarriageError('');
         setEndMarriagePartialWarning('');
         setEndMarriageDate(new Date().toISOString().split('T')[0]);
+        setEndMarriageDateStatus(1);
         setEndMarriageReason('scheiding');
         setEndMarriageDialogOpen(true);
     };
@@ -702,6 +742,7 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 personAId: person.PersonID,
                 personBId: Number(partnerId),
                 endDate: endMarriageDate,
+                endDateStatus: endMarriageDateStatus,
                 endReason: endMarriageReason,
             });
 
@@ -813,6 +854,19 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 InputLabelProps={{ shrink: true }}
                 inputProps={{ max: new Date().toISOString().split('T')[0] }}
             />
+            <FormControlLabel
+                control={(
+                    <Checkbox
+                        checked={formData.PersonDateOfBirthStatus !== 2}
+                        onChange={(event) => setFormData((previous) => ({
+                            ...previous,
+                            PersonDateOfBirthStatus: event.target.checked ? 1 : 2,
+                        }))}
+                        disabled={!formData.PersonDateOfBirth || isSaving}
+                    />
+                )}
+                label="Datum is exact"
+            />
 
             <TextField
                 label="Geboorteplaats"
@@ -829,6 +883,19 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                 fullWidth
                 InputLabelProps={{ shrink: true }}
                 inputProps={{ min: formData.PersonDateOfBirth || undefined, max: new Date().toISOString().split('T')[0] }}
+            />
+            <FormControlLabel
+                control={(
+                    <Checkbox
+                        checked={!formData.PersonDateOfDeath || formData.PersonDateOfDeathStatus !== 2}
+                        onChange={(event) => setFormData((previous) => ({
+                            ...previous,
+                            PersonDateOfDeathStatus: event.target.checked ? 1 : 2,
+                        }))}
+                        disabled={!formData.PersonDateOfDeath || isSaving}
+                    />
+                )}
+                label="Datum is exact"
             />
 
             <TextField
@@ -983,6 +1050,19 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                         : 'Vul in om nieuw huwelijk te starten met geselecteerde partner.'
                 }
             />
+            <FormControlLabel
+                control={(
+                    <Checkbox
+                        checked={!formData.MarriageStartDate || formData.MarriageStartDateStatus !== 2}
+                        onChange={(event) => setFormData((previous) => ({
+                            ...previous,
+                            MarriageStartDateStatus: event.target.checked ? 1 : 2,
+                        }))}
+                        disabled={!formData.MarriageStartDate || isSaving}
+                    />
+                )}
+                label="Datum is exact"
+            />
 
             <TextField
                 label="Plaats huwelijk"
@@ -1049,6 +1129,16 @@ const PersonEditForm = ({ person, onSave, onCancel }) => {
                         InputLabelProps={{ shrink: true }}
                         sx={{ mt: 1 }}
                     />
+                    <FormControlLabel
+                        control={(
+                            <Checkbox
+                                checked={endMarriageDateStatus !== 2}
+                                onChange={(event) => setEndMarriageDateStatus(event.target.checked ? 1 : 2)}
+                                disabled={!endMarriageDate || isEndingMarriage}
+                            />
+                        )}
+                        label="Datum is exact"
+                    />
 
                     <TextField
                         label="Reden"
@@ -1089,7 +1179,9 @@ PersonEditForm.propTypes = {
         PersonGivvenName: PropTypes.string,
         PersonFamilyName: PropTypes.string,
         PersonDateOfBirth: PropTypes.string,
+        PersonDateOfBirthStatus: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
         PersonDateOfDeath: PropTypes.string,
+        PersonDateOfDeathStatus: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
         PersonPlaceOfBirth: PropTypes.string,
         PersonPlaceOfDeath: PropTypes.string,
     }),

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Alert, Box, TextField, Button, Typography, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, MenuItem } from '@mui/material';
+import { Alert, Box, TextField, Button, Typography, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, MenuItem, Checkbox } from '@mui/material';
 import { NO_CONNECTION_ERROR_TEXT } from '../constants/errorMessages';
 import PropTypes from 'prop-types';
 import {
@@ -89,7 +89,9 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
         PersonGivvenName: '',
         PersonFamilyName: '',
         PersonDateOfBirth: '',
+        PersonDateOfBirthStatus: 1,
         PersonDateOfDeath: '',
+        PersonDateOfDeathStatus: null,
         PersonPlaceOfBirth: '',
         PersonPlaceOfDeath: '',
         FatherId: null,
@@ -467,7 +469,13 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
         
         setFormData(prev => ({
             ...prev,
-            [field]: value
+            [field]: value,
+            ...(field === 'PersonDateOfBirth'
+                ? { PersonDateOfBirthStatus: value ? (prev.PersonDateOfBirthStatus || 1) : null }
+                : {}),
+            ...(field === 'PersonDateOfDeath'
+                ? { PersonDateOfDeathStatus: value ? (prev.PersonDateOfDeathStatus || 1) : null }
+                : {}),
         }));
     };
 
@@ -535,7 +543,9 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
                 PersonGivvenName: formData.PersonGivvenName.trim(),
                 PersonFamilyName: formData.PersonFamilyName.trim(),
                 PersonDateOfBirth: formData.PersonDateOfBirth || null,
+                PersonDateOfBirthStatus: formData.PersonDateOfBirth ? formData.PersonDateOfBirthStatus : null,
                 PersonDateOfDeath: formData.PersonDateOfDeath || null,
+                PersonDateOfDeathStatus: formData.PersonDateOfDeath ? formData.PersonDateOfDeathStatus : null,
                 PersonPlaceOfBirth: formData.PersonPlaceOfBirth || null,
                 PersonPlaceOfDeath: formData.PersonPlaceOfDeath || null,
                 FatherId: formData.FatherId || null,
@@ -621,6 +631,19 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
                 InputLabelProps={{ shrink: true }}
                 inputProps={{ max: new Date().toISOString().split('T')[0] }}
             />
+            <FormControlLabel
+                control={(
+                    <Checkbox
+                        checked={formData.PersonDateOfBirthStatus !== 2}
+                        onChange={(event) => setFormData((previous) => ({
+                            ...previous,
+                            PersonDateOfBirthStatus: event.target.checked ? 1 : 2,
+                        }))}
+                        disabled={!formData.PersonDateOfBirth || isSaving}
+                    />
+                )}
+                label="Datum is exact"
+            />
 
             <TextField
                 label="Geboorteplaats"
@@ -640,6 +663,19 @@ const PersonAddForm = ({ parentPerson, relationAction = 'standalone', sourcePers
                 disabled={isSaving}
                 InputLabelProps={{ shrink: true }}
                 inputProps={{ min: formData.PersonDateOfBirth || undefined, max: new Date().toISOString().split('T')[0] }}
+            />
+            <FormControlLabel
+                control={(
+                    <Checkbox
+                        checked={formData.PersonDateOfDeathStatus !== 2}
+                        onChange={(event) => setFormData((previous) => ({
+                            ...previous,
+                            PersonDateOfDeathStatus: event.target.checked ? 1 : 2,
+                        }))}
+                        disabled={!formData.PersonDateOfDeath || isSaving}
+                    />
+                )}
+                label="Datum is exact"
             />
 
             <TextField

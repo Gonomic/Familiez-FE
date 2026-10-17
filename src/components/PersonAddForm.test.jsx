@@ -70,6 +70,32 @@ describe('PersonAddForm sibling guard', () => {
         expect(familyDataService.addPerson).not.toHaveBeenCalled();
     });
 
+    it('sends estimated status for approximate birth and death dates', async () => {
+        const user = userEvent.setup();
+        const { container } = render(
+            <PersonAddForm onAdd={() => {}} onCancel={() => {}} />
+        );
+
+        await user.type(screen.getByRole('textbox', { name: /Voornaam/i }), 'Jan');
+        await user.type(screen.getByRole('textbox', { name: /Achternaam/i }), 'Jansen');
+        const dateInputs = container.querySelectorAll('input[type="date"]');
+        fireEvent.change(dateInputs[0], { target: { value: '1900-01-02' } });
+        fireEvent.change(dateInputs[1], { target: { value: '1980-01-02' } });
+        await user.type(screen.getByRole('textbox', { name: /Geboorteplaats/i }), 'Leiden');
+
+        const exactnessCheckboxes = screen.getAllByRole('checkbox');
+        await user.click(exactnessCheckboxes[0]);
+        await user.click(exactnessCheckboxes[1]);
+        await user.click(screen.getByRole('button', { name: 'Bewaren' }));
+
+        await waitFor(() => {
+            expect(familyDataService.addPerson).toHaveBeenCalledWith(expect.objectContaining({
+                PersonDateOfBirthStatus: 2,
+                PersonDateOfDeathStatus: 2,
+            }));
+        });
+    });
+
     it.each([
         ['brother', 'Man'],
         ['sister', 'Vrouw'],

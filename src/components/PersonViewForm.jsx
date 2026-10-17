@@ -186,17 +186,14 @@ const formatGender = (value) => {
     return 'Onbekend';
 };
 
-const formatMarriageDate = (value) => {
+const formatMarriageDate = (value, status) => {
     if (!value) return '-';
-    try {
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) {
-            return String(value);
-        }
-        return date.toLocaleDateString('nl-NL');
-    } catch (err) {
-        return String(value);
+    const prefix = Number(status) === 2 ? 'ca. ' : '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return `${prefix}${String(value)}`;
     }
+    return `${prefix}${date.toLocaleDateString('nl-NL')}`;
 };
 
 const formatMarriageReason = (value) => {
@@ -551,6 +548,7 @@ const PersonViewForm = ({ person, onClose }) => {
                 fullWidth
                 disabled
                 InputLabelProps={{ shrink: true }}
+                helperText={Number(person.PersonDateOfBirthStatus) === 2 ? 'Bij benadering' : undefined}
                 InputProps={{
                     readOnly: true,
                 }}
@@ -573,6 +571,7 @@ const PersonViewForm = ({ person, onClose }) => {
                 fullWidth
                 disabled
                 InputLabelProps={{ shrink: true }}
+                helperText={Number(person.PersonDateOfDeathStatus) === 2 ? 'Bij benadering' : undefined}
                 InputProps={{
                     readOnly: true,
                 }}
@@ -658,7 +657,9 @@ const PersonViewForm = ({ person, onClose }) => {
 
                     <TextField
                         label="Startdatum actief huwelijk"
-                        value={activeMarriage ? formatMarriageDate(activeMarriage.StartDate) : '-'}
+                        value={activeMarriage
+                            ? formatMarriageDate(activeMarriage.StartDate, activeMarriage.StartDateStatus)
+                            : '-'}
                         fullWidth
                         disabled
                         InputProps={{
@@ -688,8 +689,10 @@ const PersonViewForm = ({ person, onClose }) => {
                         <Stack spacing={1}>
                             {marriageHistory.slice(0, 5).map((row) => {
                                 const partnerLabel = `${row.PartnerGivvenName || ''} ${row.PartnerFamilyName || ''}`.trim() || 'Onbekend';
-                                const startLabel = formatMarriageDate(row.StartDate);
-                                const endLabel = row.EndDate ? formatMarriageDate(row.EndDate) : '-';
+                                const startLabel = formatMarriageDate(row.StartDate, row.StartDateStatus);
+                                const endLabel = row.EndDate
+                                    ? formatMarriageDate(row.EndDate, row.EndDateStatus)
+                                    : '-';
                                 const statusLabel = Number(row.IsActive) === 1 ? 'Actief' : 'Beeindigd';
 
                                 return (
@@ -772,7 +775,9 @@ PersonViewForm.propTypes = {
         PersonGivvenName: PropTypes.string,
         PersonFamilyName: PropTypes.string,
         PersonDateOfBirth: PropTypes.string,
+        PersonDateOfBirthStatus: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
         PersonDateOfDeath: PropTypes.string,
+        PersonDateOfDeathStatus: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
         PersonPlaceOfBirth: PropTypes.string,
         PersonPlaceOfDeath: PropTypes.string,
         PersonIsMale: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
